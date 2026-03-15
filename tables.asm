@@ -16,7 +16,7 @@
 ; repeating. This pattern corresponds to the 4 character cells within each
 ; 320-byte (&140) screen row.
 
-ORG &0700
+; P% should be &0700 here (flowing from engine.asm padding)
 .screen_col_lut
     EQUB &00, &40, &80, &C0     ; Columns 0-3
     EQUB &00, &40, &80, &C0     ; Columns 4-7
@@ -119,7 +119,7 @@ ORG &0700
 ; Also used by set_volume as a volume envelope table — the same curve
 ; shape provides a natural-sounding amplitude decay for sound effects.
 
-ORG &0800
+; P% should be &0800 here (flowing from palette tables)
 .physics_table
     EQUB &3F, &3E, &3C, &3A     ; 63, 62, 60, 58 — initial fast descent
     EQUB &38, &37, &35, &34     ; 56, 55, 53, 52

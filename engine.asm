@@ -112,6 +112,20 @@ ORG &0600
     PLA
     RTI
 
+; --- Padding: &065E-&06B9 (unused, zeroed) ---
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &065E
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &0666
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &066E
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &0676
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &067E
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &0686
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &068E
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &0696
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &069E
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06A6
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06AE
+    EQUB &00, &00, &00, &00                         ; &06B6
+
 ; ############################################################################
 ; SPRITE ANIMATION POINTER TABLE (&06BA-&06C8)
 ; ############################################################################
@@ -119,7 +133,6 @@ ORG &0600
 ; Used by the spawn code to look up how each sprite type animates.
 ; ############################################################################
 
-ORG &06BA
 
 .sprite_anim_ptrs
     EQUB &5D, &9D, &09          ; Type 0
@@ -129,6 +142,15 @@ ORG &06BA
     EQUB &A1, &9D, &09          ; Type 4
     EQUB &BD, &95, &09          ; Type 5
     EQUB &8E, &9D, &09          ; Type 6
+
+; --- Padding: &06CF-&06FF (runtime residuals from game state) ---
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06CF
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06D7
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06DF
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06E7
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06EF
+    EQUB &00, &00, &DA, &00, &00, &00, &D9, &00     ; &06F7
+    EQUB &00                                         ; &06FF
 
 ; --- Lookup tables fill the gap between &0700-&087F ---
 INCLUDE "tables.asm"
@@ -146,7 +168,7 @@ INCLUDE "tables.asm"
 ; Sprite state uses X-indexed zero page arrays for 4 sprites.
 ; ############################################################################
 
-ORG &0880
+; P% should be &0880 here (flowing from tables.asm physics table)
 
 ; === Jump Table ===
 ; External entry points — callers use these JMPs for indirection.
