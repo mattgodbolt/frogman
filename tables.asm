@@ -67,8 +67,8 @@
 ; 128 bytes of colour values used for palette cycling and fade effects.
 ; Each entry is a 4-bit logical colour value (0-15). The tables are
 ; indexed during colour fade-in/fade-out sequences and also used by
-; the set_volume routine to look up volume/attenuation values for the
-; SN76489 sound chip.
+; the set_tone routine to provide the low nibble of SN76489 frequency
+; register data.
 ;
 ; The first portion contains colour cycling patterns for visual effects.
 ; The latter portion contains smooth fade-down ramps (15 to 0).

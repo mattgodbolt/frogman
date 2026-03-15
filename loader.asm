@@ -20,8 +20,8 @@ ORG &2800
     SEI
 
     ; --- Load lookup tables and engine code ---
-    ; FastIO contains: screen LUTs (&0700), palette tables (&0780),
-    ; physics table (&0800), and the game engine (&0880-&0C78+music)
+    ; FastIO contains: tile source LUTs (&0700), palette tables (&0780),
+    ; sound envelope table (&0800), and the game engine (&0880-&0C79+music)
     ; Original load address: &0700, length: &0580 (1408 bytes)
 
     ; --- Load level-specific data ---
