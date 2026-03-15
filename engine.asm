@@ -114,18 +114,7 @@ ORG &0600
     RTI
 
 ; --- Padding (unused, zeroed) ---
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00
+    SKIP 92
 
 ; ############################################################################
 ; SPRITE ANIMATION POINTER TABLE
@@ -145,13 +134,11 @@ ORG &0600
     EQUB &8E, &9D, &09          ; Type 6
 
 ; --- Padding (runtime residuals from game state) ---
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &DA, &00, &00, &00, &D9, &00
-    EQUB &00
+    SKIP 42
+    EQUB &DA                    ; Runtime residual
+    SKIP 3
+    EQUB &D9                    ; Runtime residual
+    SKIP 2
 
 ; --- Lookup tables fill the gap between &0700-&087F ---
 INCLUDE "tables.asm"
@@ -200,38 +187,9 @@ INCLUDE "tables.asm"
 ; The JMP at bc_done re-enters here, resetting Y each iteration.
 .bc_copy_loop
     LDY #&00                    ; Reset byte offset for each row
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY     ; 8
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY     ; 16
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY     ; 24
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY
-    LDA (&00),Y : STA (&02),Y : INY     ; 32
+    FOR n, 1, 32
+        LDA (&00),Y : STA (&02),Y : INY
+    NEXT
 
     ; Advance source by 32 bytes
     CLC

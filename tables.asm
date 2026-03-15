@@ -1,6 +1,5 @@
 ; ============================================================================
 ; FROGMAN — Lookup Tables
-; Lookup Tables
 ;
 ; These tables are pre-populated in memory before the game engine runs.
 ; They provide fast lookups for tile source addressing, colour cycling,
@@ -16,49 +15,23 @@
 ; each group of 4 consecutive tiles to the same source bank.
 
 .tile_src_lo
-    EQUB &00, &40, &80, &C0     ; Tiles 0-3: offsets within source bank
-    EQUB &00, &40, &80, &C0     ; Tiles 4-7
-    EQUB &00, &40, &80, &C0     ; Tiles 8-11
-    EQUB &00, &40, &80, &C0     ; Tiles 12-15
-    EQUB &00, &40, &80, &C0     ; Tiles 16-19
-    EQUB &00, &40, &80, &C0     ; Tiles 20-23
-    EQUB &00, &40, &80, &C0     ; Tiles 24-27
-    EQUB &00, &40, &80, &C0     ; Tiles 28-31
-    EQUB &00, &40, &80, &C0     ; Tiles 32-35
-    EQUB &00, &40, &80, &C0     ; Tiles 36-39
-    EQUB &00, &40, &80, &C0     ; Tiles 40-43
-    EQUB &00, &40, &80, &C0     ; Tiles 44-47
-    EQUB &00, &40, &80, &C0     ; Tiles 48-51
-    EQUB &00, &40, &80, &C0     ; Tiles 52-55
-    EQUB &00, &40, &80, &C0     ; Tiles 56-59
-    EQUB &00, &40, &80, &C0     ; Tiles 60-63
+    FOR n, 0, 63
+        EQUB (n MOD 4) * &40
+    NEXT
 
 ; ============================================================================
 ; Tile Source High-Byte LUT
 ; ============================================================================
 ; Maps a tile index to the high byte of its graphics source address.
-; Tile graphics are stored in the region &3800-&47FF. Each group of 4
-; entries shares the same high byte, corresponding to tiles sharing
-; the same 256-byte source bank (each tile is 2 character rows = 16
-; pixels tall). Values run from &38 to &47.
+; Tile graphics are stored starting at &3800. Each group of 4 tiles
+; shares a 256-byte source bank. Values run from &38 to &47.
+
+tile_src_base = &38
 
 .tile_src_hi
-    EQUB &38, &38, &38, &38     ; Tiles 0-3: source bank &3800
-    EQUB &39, &39, &39, &39     ; Tiles 4-7: source bank &3900
-    EQUB &3A, &3A, &3A, &3A     ; Tiles 8-11: source bank &3A00
-    EQUB &3B, &3B, &3B, &3B     ; Tiles 12-15: source bank &3B00
-    EQUB &3C, &3C, &3C, &3C     ; Tiles 16-19: source bank &3C00
-    EQUB &3D, &3D, &3D, &3D     ; Tiles 20-23: source bank &3D00
-    EQUB &3E, &3E, &3E, &3E     ; Tiles 24-27: source bank &3E00
-    EQUB &3F, &3F, &3F, &3F     ; Tiles 28-31: source bank &3F00
-    EQUB &40, &40, &40, &40     ; Tiles 32-35: source bank &4000
-    EQUB &41, &41, &41, &41     ; Tiles 36-39: source bank &4100
-    EQUB &42, &42, &42, &42     ; Tiles 40-43: source bank &4200
-    EQUB &43, &43, &43, &43     ; Tiles 44-47: source bank &4300
-    EQUB &44, &44, &44, &44     ; Tiles 48-51: source bank &4400
-    EQUB &45, &45, &45, &45     ; Tiles 52-55: source bank &4500
-    EQUB &46, &46, &46, &46     ; Tiles 56-59: source bank &4600
-    EQUB &47, &47, &47, &47     ; Tiles 60-63: source bank &4700
+    FOR n, 0, 63
+        EQUB tile_src_base + (n DIV 4)
+    NEXT
 
 ; ============================================================================
 ; Palette / Colour Fade Tables
@@ -109,7 +82,7 @@
 ; ============================================================================
 ; Descending Curve Table
 ; ============================================================================
-; 128-byte lookup table providing a descending curve from 63 (&3F) to 1.
+; 128-byte lookup table providing a descending curve from 63 to 1.
 ; Primary runtime use is as the second byte of SN76489 frequency data,
 ; called by set_tone to provide sound frequency envelope shaping.
 ; May also be used for physics calculations (the curve shape would
