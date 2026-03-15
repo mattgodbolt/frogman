@@ -18,14 +18,18 @@
 ;   Tune 3: &0E80-&0EFF (encrypted block at &0E00-&0E7F precedes)
 ; ============================================================================
 
-ORG &0C78
+; NOTE: The exact start address depends on where engine.asm ends.
+; The engine currently assembles to &0C80, so music data starts here.
+; In the original binary, the boundary is at &0C7A (the RTS at &0C79
+; is the last engine byte). The difference is due to assembly inaccuracies
+; that need to be resolved for byte-exact matching.
+ORG &0C80
 
 ; --- Tune 1: Main theme ---
-; The RTS at the end of tile_renderer is actually the byte &60 here,
-; which serves double duty as both the RTS and a data value.
+; Starts at &0C7A, immediately after the tile renderer's RTS at &0C79.
+; (The BNE offset byte at &0C78 and RTS at &0C79 are part of engine.asm)
 .music_data
-    ; &0C78: These bytes follow immediately after the tile renderer's RTS
-    EQUB &4F, &56, &20, &52     ; "OV R" — could be ASCII remnant or data
+    EQUB &4F, &56, &20, &52     ; "OV R" — ASCII remnant or data header
     EQUB &30, &2C, &07, &F1     ; Tune header / initial note data
 
     ; Note/duration pairs — melody line

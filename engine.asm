@@ -129,6 +129,9 @@ ORG &06BA
     EQUB &BD, &95, &09          ; Type 5
     EQUB &8E, &9D, &09          ; Type 6
 
+; --- Lookup tables fill the gap between &0700-&087F ---
+INCLUDE "tables.asm"
+
 ; ############################################################################
 ; GAME ENGINE (&0880-&0C77)
 ; ############################################################################
@@ -744,5 +747,8 @@ ORG &0880
     LDA &17 : ADC &16 : STA &17   ; Advance width limit
     DEC &18                     ; Decrement row counter
     BNE tile_outer              ; More rows — loop back
-    ; Falls through to music data: &0C78=&BE (unused BNE offset),
-    ; &0C79=&60 (RTS). The implicit RTS comes from the music data!
+    ; Falls through when row counter reaches zero.
+    ; &0C79 = &60 (RTS) — the RTS lives in the music data region,
+    ; doing double duty as both code and data. We include it here
+    ; explicitly so the engine is self-contained.
+    RTS

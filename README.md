@@ -6,7 +6,7 @@ This repository contains a fully annotated, instruction-level disassembly of the
 
 ## The Game
 
-FROGMAN is a side-scrolling platformer for the BBC Master. You control a frog navigating brick-walled levels filled with enemies, trees, and obstacles. The game features two levels, sprite animation, scrolling, music, and a lives system — all packed into approximately **1.1KB of 6502 machine code**.
+FROGMAN is a side-scrolling platformer for the BBC Master. You control a frog navigating brick-walled levels filled with trees, obstacles, and hazards. The game features two levels, sprite animation, scrolling, music, and a lives system — all packed into approximately **1.1KB of 6502 machine code**.
 
 The original game files are heavily encrypted on disk using a 55-stage XOR encryption chain with VIA timer-based PRNG seeds, making static analysis intentionally impossible. This disassembly was produced by booting the game in an emulator and dumping decrypted memory at runtime.
 
