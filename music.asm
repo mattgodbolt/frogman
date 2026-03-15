@@ -18,12 +18,10 @@
 ;   Tune 3: &0E80-&0EFF (encrypted block at &0E00-&0E7F precedes)
 ; ============================================================================
 
-; NOTE: The exact start address depends on where engine.asm ends.
-; The engine currently assembles to &0C80, so music data starts here.
-; In the original binary, the boundary is at &0C7A (the RTS at &0C79
-; is the last engine byte). The difference is due to assembly inaccuracies
-; that need to be resolved for byte-exact matching.
-ORG &0C80
+; Music data begins immediately after the tile renderer's RTS at &0C79.
+; No ORG needed — this continues from wherever engine.asm left off.
+; The engine's BNE tile_outer has its offset byte at &0C78, RTS at &0C79,
+; so P% should be &0C7A here.
 
 ; --- Tune 1: Main theme ---
 ; Starts at &0C7A, immediately after the tile renderer's RTS at &0C79.

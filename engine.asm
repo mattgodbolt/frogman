@@ -66,9 +66,10 @@ ORG &0600
 .delay_loop
     INC &CF                     ; Increment delay counter
     LDA &CF                     ; Load delay value
+.delay_spin
     STA &FE2A                   ; Write to Timer 2 counter low
-    CMP &FE2A                   ; Wait for timer to latch
-    BNE delay_loop              ; Spin until ready
+    CMP &FE2A                   ; Read back — has timer latched?
+    BNE delay_spin              ; No — keep trying same value
 
     LDA &A7                     ; Load saved IFR value
     STA &FE28                   ; Clear interrupt flags
@@ -173,10 +174,11 @@ ORG &0880
     STA &01                     ; Source pointer high
     JSR calc_screen_addr        ; Calculate screen dest address -> &02/&03
     LDX #&01                    ; Copy 2 rows (counter: 1, 0)
-    LDY #&00                    ; Byte offset
 
 ; Fully unrolled 32-byte copy — speed-critical inner loop.
+; The JMP at bc_done re-enters here, resetting Y each iteration.
 .bc_copy_loop
+    LDY #&00                    ; Reset byte offset for each row
     LDA (&00),Y : STA (&02),Y : INY
     LDA (&00),Y : STA (&02),Y : INY
     LDA (&00),Y : STA (&02),Y : INY
@@ -303,8 +305,8 @@ ORG &0880
 .init_game
     JSR setup_sys_via           ; Init System VIA timer
     LDX #&03
-    LDA #&00
 .init_silence
+    LDA #&00                    ; Silence value
     JSR set_attenuation         ; Silence each channel
     DEX
     BPL init_silence
@@ -552,8 +554,6 @@ ORG &0880
 .sprite_loop_pos
     EQUB &00, &00, &00, &00
 .sprite_loop_count
-    EQUB &00, &00, &00, &00
-.sprite_anim_source
     EQUB &00, &0C, &0D, &0E
 
 ; === Spawn Sprite (&0B30-&0B5C) ===
@@ -596,50 +596,56 @@ ORG &0880
 ; 8 word entries pointing to movement sequences.
 
 .move_ptr_table
-    EQUB &8B, &0B               ; Seq 0 -> &0B8B
-    EQUB &9D, &0B               ; Seq 1 -> &0B9D
-    EQUB &BF, &0B               ; Seq 2 -> &0BBF
-    EQUB &A3, &0B               ; Seq 3 -> &0BA3
-    EQUB &B1, &0B               ; Seq 4 -> &0BB1
-    EQUB &C9, &0B               ; Seq 5 -> &0BC9
-    EQUB &D7, &0B               ; Seq 6 -> &0BD7
-    EQUB &FF, &FF               ; End marker
+    EQUW move_seq_0             ; Seq 0 -> &0B8B
+    EQUW move_seq_1             ; Seq 1 -> &0B9D
+    EQUW move_seq_2             ; Seq 2 -> &0BBF
+    EQUW move_seq_3             ; Seq 3 -> &0BA3
+    EQUW move_seq_4             ; Seq 4 -> &0BB1
+    EQUW move_seq_5             ; Seq 5 -> &0BC9
+    EQUW move_seq_6             ; Seq 6 -> &0BD7
 
-; === Movement Data Sequences (&0B8D-&0BE4) ===
+; === Movement Data Sequences (&0B8B-&0BE4) ===
 ; Velocity/duration patterns for sprite movement.
 ; &FF,&FF = sequence terminator. &FD prefix = signed velocity.
 ; &FE = reverse direction. Each step: velY, velX, duration, sub-ctr.
+; The last pointer entry (&FF,&FF) doubles as the Seq 0 header.
 
-.move_data                      ; &0B8B
-    EQUB &FF, &FF               ; Seq 0 header
+.move_seq_0                     ; &0B8B — pointed to by move_ptr_table
+    EQUB &FF, &FF               ; Seq 0 header / end-of-ptr-table
     EQUB &28, &00, &04, &04     ; Down fast
     EQUB &00, &00, &20, &04     ; Pause
     EQUB &F6, &00, &10, &04     ; Up
     EQUB &00, &00, &00, &00     ; Stop
 
-    EQUB &FF, &FF               ; Seq 1 (&0B9D) header
-    EQUB &FE, &00, &20, &00     ; Reverse
+.move_seq_1                     ; &0B9D
+    EQUB &FF, &FF               ; Header
+    EQUB &FE, &00, &20, &00     ; Reverse direction
 
-    EQUB &FF, &FF               ; Seq 3 (&0BA3) header
+.move_seq_3                     ; &0BA3
+    EQUB &FF, &FF               ; Header
     EQUB &FD, &14, &00, &04
     EQUB &FD, &0C, &00, &04
     EQUB &FD, &E0, &00, &F8
 
-    EQUB &FF, &FF               ; Seq 4 (&0BB1) header
+.move_seq_4                     ; &0BB1
+    EQUB &FF, &FF               ; Header
     EQUB &FD, &14, &00, &04
     EQUB &FD, &08, &00, &04
     EQUB &FD, &E4, &00, &F8
 
-    EQUB &FF, &FF               ; Seq 2 (&0BBF) header
+.move_seq_2                     ; &0BBF
+    EQUB &FF, &FF               ; Header
     EQUB &FE, &01, &01, &04
     EQUB &FE, &FF, &01, &FC
 
-    EQUB &FF, &FF               ; Seq 5 (&0BC9) header
+.move_seq_5                     ; &0BC9
+    EQUB &FF, &FF               ; Header
     EQUB &FD, &14, &00, &04
     EQUB &FD, &10, &00, &04
     EQUB &FD, &DC, &00, &F8
 
-    EQUB &FF, &FF               ; Seq 6 (&0BD7) header
+.move_seq_6                     ; &0BD7
+    EQUB &FF, &FF               ; Header
     EQUB &FD, &14, &00, &04
     EQUB &FD, &08, &00, &04
     EQUB &FD, &E4, &00, &F8
