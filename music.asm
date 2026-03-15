@@ -181,7 +181,7 @@
     EQUB &2D, &95, &0E, &AD
     EQUB &6B, &91, &D5, &BF
     EQUB &DA, &70, &FC, &86
-    EQUB &2A, &98, &73, &0F
-    ; Referenced by code: LDA &0EF7
-    EQUB &36, &34, &30, &38     ; &0EF4
-    EQUB &38, &29, &34, &65     ; &0EF8 — &0EF7 = &29 (used as sprite constant)
+    EQUB &2A, &98, &73
+.anim_timing_const                       ; &0EF7 — referenced by anim_frame_data
+    EQUB &0F, &36, &34, &30, &38
+    EQUB &38, &29, &34, &65

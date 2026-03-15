@@ -58,7 +58,7 @@ ORG &0600
     BCC delay_loop              ; Sound disabled — skip
 
     LDA #&48                    ; Silence token
-    STA &0D4C                   ; Patch into music data stream
+    STA encrypted_block_1 + &4C                   ; Patch into music data stream
 
 ; --- VIA Timer 2 delay loop ---
 ; Generates a variable-length delay by spinning on Timer 2.
@@ -84,16 +84,16 @@ ORG &0600
     LDA &FE2B                   ; Read Timer 2 high (pseudo-random seed)
     STA &8000                   ; Write to sound output
 
-    INC &0D3D                   ; Advance music pointer low (self-mod)
+    INC encrypted_block_1 + &3D                   ; Advance music pointer low (self-mod)
     BNE skip_music_hi
-    INC &0D3E                   ; Carry to music pointer high
+    INC encrypted_block_1 + &3E                   ; Carry to music pointer high
 
 .skip_music_hi
     DEC &A6                     ; Decrement note duration
     BNE done_music              ; Note still playing
 
     LDA #&2F                    ; Reset/silence token
-    STA &0D09                   ; Patch into music data
+    STA encrypted_block_1 + &09                   ; Patch into music data
 
 .done_music
     PLA
@@ -190,9 +190,9 @@ INCLUDE "tables.asm"
     STY bc_restore_y + 1        ; Save Y into self-mod operand
     STX bc_restore_x + 1        ; Save X into self-mod operand
     TAY                         ; Tile index -> Y for LUT lookup
-    LDA &0700,Y                 ; Screen column low byte from LUT
+    LDA screen_col_lut,Y                 ; Screen column low byte from LUT
     STA &00                     ; Source pointer low
-    LDA &0740,Y                 ; Screen row high byte from LUT
+    LDA screen_row_lut,Y                 ; Screen row high byte from LUT
     STA &01                     ; Source pointer high
     JSR calc_screen_addr        ; Calculate screen dest address -> &02/&03
     LDX #&01                    ; Copy 2 rows (counter: 1, 0)
@@ -353,26 +353,27 @@ INCLUDE "tables.asm"
     AND #&7F                    ; Strip high bit
     STA &63                     ; Store frame byte
     INY
-    LDA &0EF7                   ; Global animation timing constant
+    LDA anim_timing_const                   ; Global animation timing constant
     STA &62                     ; Frame duration
     JMP anim_apply
 
 .anim_set_loop
     TYA                         ; Save stream position
-    STA &0B24,X                 ; as loop-back point
+    STA sprite_horiz_speed,X                 ; as loop-back point
     INY
     LDA (&90),Y                 ; Read repeat count
-    STA &0B28,X
+    STA sprite_loop_pos,X
     INY
     JMP update_sprite_read
 
 .anim_loop_back
-    STY &0A0A                   ; Save current Y (self-mod)
-    LDY &0B24,X                 ; Restore loop-back position
+    STY anim_saved_y + 1        ; Save current Y (self-modifying immediate)
+    LDY sprite_horiz_speed,X    ; Restore loop-back position
     INY : INY                   ; Advance past loop body
-    DEC &0B28,X                 ; Decrement repeat counter
+    DEC sprite_loop_pos,X       ; Decrement repeat counter
     BNE update_sprite_read      ; Loop again if count > 0
-    LDY #&00                    ; Count exhausted
+.anim_saved_y
+    LDY #&00                    ; Count exhausted (operand patched by STY above)
     INY                         ; Y = 1
     JMP update_sprite_read
 
@@ -387,14 +388,14 @@ INCLUDE "tables.asm"
 
     LDA &63
     LSR A : LSR A : LSR A : LSR A
-    STA &0B1C,X                 ; Vertical speed
+    STA sprite_vert_speed,X                 ; Vertical speed
     INY
     JMP update_sprite_read
 
 .anim_set_horiz
     LDA &63
     LSR A : LSR A
-    STA &0B20,X                 ; Horizontal speed
+    STA sprite_vert_dir,X                 ; Horizontal speed
     INY
     JMP update_sprite_read
 
@@ -415,7 +416,7 @@ INCLUDE "tables.asm"
     ; Timer expired — read new animation from stream
     LDA #&80
     STA &90                     ; Animation ptr low = &80
-    LDA &0B2C,X                 ; Animation source high for sprite X
+    LDA sprite_loop_count,X                 ; Animation source high for sprite X
     STA &91
     LDY &8C,X                   ; Animation stream index
 
@@ -439,9 +440,9 @@ INCLUDE "tables.asm"
 
 .anim_apply
     STY &8C,X                   ; Update animation index
-    LDA &0B1C,X                 ; Vertical speed
+    LDA sprite_vert_speed,X                 ; Vertical speed
     STA &64
-    LDY &0B20,X                 ; Horizontal speed
+    LDY sprite_vert_dir,X                 ; Horizontal speed
     JSR spawn_sprite            ; Set up sprite movement
 
 .update_enemy_next
@@ -505,8 +506,8 @@ INCLUDE "tables.asm"
     PLA
     ASL A                       ; x2 for word table
     TAY
-    LDA &0B7D,Y : STA &7C,X : STA &60   ; New movement ptr low
-    LDA &0B7E,Y : STA &80,X : STA &61   ; New movement ptr high
+    LDA move_ptr_table,Y : STA &7C,X : STA &60   ; New movement ptr low
+    LDA move_ptr_table + 1,Y : STA &80,X : STA &61   ; New movement ptr high
     LDA #&02 : STA &84,X       ; Reset index
     JMP player_chain
 
@@ -544,10 +545,10 @@ INCLUDE "tables.asm"
 
 .set_volume
     TAY
-    LDA &0B14,X                 ; Channel volume register
-    ORA &0780,Y                 ; OR with palette/volume value
+    LDA channel_vol_regs,X                 ; Channel volume register
+    ORA palette_tables,Y                 ; OR with palette/volume value
     JSR sn76489_write
-    LDA &0800,Y                 ; Envelope from physics table (dual-purpose!)
+    LDA physics_table,Y                 ; Envelope from physics table (dual-purpose!)
     JMP sn76489_write
 
 ; === Set Attenuation (&0B0A-&0B13) ===
@@ -556,7 +557,7 @@ INCLUDE "tables.asm"
 .set_attenuation
     EOR #&0F                    ; Invert volume
     AND #&0F                    ; 4-bit mask
-    ORA &0B18,X                 ; Channel frequency register
+    ORA channel_freq_regs,X                 ; Channel frequency register
     JMP sn76489_write
 
 ; === Channel Register Tables (&0B14-&0B2F) ===
@@ -589,8 +590,8 @@ INCLUDE "tables.asm"
     ASL A : ASL A : ASL A : ASL A  ; x16 for sub-pixel
     STA &74,X                   ; Y sub-pixel position
     TYA : ASL A : TAY           ; Sequence index x2
-    LDA &0B7D,Y : STA &7C,X : STA &60  ; Movement ptr low
-    LDA &0B7E,Y : STA &80,X : STA &61  ; Movement ptr high
+    LDA move_ptr_table,Y : STA &7C,X : STA &60  ; Movement ptr low
+    LDA move_ptr_table + 1,Y : STA &80,X : STA &61  ; Movement ptr high
     LDA #&02 : STA &84,X        ; Movement index (skip header)
     LDY #&04
     LDA (&60),Y : STA &88,X     ; Initial sub-counter
@@ -682,7 +683,7 @@ INCLUDE "tables.asm"
 
 .tile_addr_setup
     LDY &19                     ; Current level number
-    LDA &0BE5,Y                 ; Level-indexed column offset
+    LDA tile_col_lut,Y                 ; Level-indexed column offset
     STA tile_gfx_load + 1       ; Patch address low byte
     LDA #&37                    ; Tile graphics at &3700
     STA tile_gfx_load + 2       ; Patch address high byte
