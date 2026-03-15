@@ -3,9 +3,9 @@
 ; Written by Matthew Godbolt & Richard Talbot-Watkins, February 1993
 ;
 ; Contains ALL executable code:
-;   IRQ Handler:          &0600-&065D  (94 bytes)
-;   Sprite Pointer Table: &06BA-&06C8  (15 bytes)
-;   Game Engine:          &0880-&0C77  (1016 bytes)
+;   IRQ Handler           (94 bytes)
+;   Sprite Pointer Table  (21 bytes)
+;   Game Engine           (1018 bytes)
 ;
 ; Total executable code: ~1.1KB — remarkably compact for a full-featured
 ; platformer with scrolling, sprite animation, physics, and music.
@@ -14,7 +14,7 @@
 ; ============================================================================
 
 ; ############################################################################
-; IRQ HANDLER (&0600-&065D)
+; IRQ HANDLER
 ; ############################################################################
 ; Handles hardware interrupts from the System VIA:
 ;   - CA1+CA2 (VSYNC-related) both set → music note sequencing
@@ -46,7 +46,7 @@ ORG &0600
 
 ; --- Sound envelope tick ---
 ; On the final tick (counter=1), if sound is enabled, patches a silence
-; byte into the music data stream at &0D4C.
+; byte into the music data stream at music_env_patch.
 
 .sound_tick
     LDA &A5                     ; Load envelope counter
@@ -113,22 +113,22 @@ ORG &0600
     PLA
     RTI
 
-; --- Padding: &065E-&06B9 (unused, zeroed) ---
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &065E
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &0666
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &066E
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &0676
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &067E
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &0686
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &068E
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &0696
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &069E
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06A6
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06AE
-    EQUB &00, &00, &00, &00                         ; &06B6
+; --- Padding (unused, zeroed) ---
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00
 
 ; ############################################################################
-; SPRITE ANIMATION POINTER TABLE (&06BA-&06C8)
+; SPRITE ANIMATION POINTER TABLE
 ; ############################################################################
 ; 7 entries (low byte, high byte, bank) pointing to animation sequences.
 ; Used by the spawn code to look up how each sprite type animates.
@@ -144,22 +144,22 @@ ORG &0600
     EQUB &BD, &95, &09          ; Type 5
     EQUB &8E, &9D, &09          ; Type 6
 
-; --- Padding: &06CF-&06FF (runtime residuals from game state) ---
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06CF
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06D7
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06DF
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06E7
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00     ; &06EF
-    EQUB &00, &00, &DA, &00, &00, &00, &D9, &00     ; &06F7
-    EQUB &00                                         ; &06FF
+; --- Padding (runtime residuals from game state) ---
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &DA, &00, &00, &00, &D9, &00
+    EQUB &00
 
 ; --- Lookup tables fill the gap between &0700-&087F ---
 INCLUDE "tables.asm"
 
 ; ############################################################################
-; GAME ENGINE (&0880-&0C77)
+; GAME ENGINE
 ; ############################################################################
-; 1016 bytes implementing the complete game logic:
+; 1018 bytes implementing the complete game logic:
 ;   - Tile rendering with scrolling
 ;   - Sprite animation state machines
 ;   - Physics and gravity
@@ -169,23 +169,21 @@ INCLUDE "tables.asm"
 ; Sprite state uses X-indexed zero page arrays for 4 sprites.
 ; ############################################################################
 
-; P% should be &0880 here (flowing from tables.asm physics table)
-
 ; === Jump Table ===
 ; External entry points — callers use these JMPs for indirection.
 
-.jmp_block_copy     : JMP block_copy        ; &0895
-.jmp_calc_scrn_addr : JMP calc_screen_addr   ; &0967
-.jmp_setup_map      : JMP setup_map_render   ; &0982
-.jmp_render_map     : JMP render_map         ; &0997
-.jmp_spawn_sprite   : JMP spawn_sprite       ; &0B30
-.jmp_update_sprites : JMP update_sprites     ; &0A2D
-.jmp_init_game      : JMP init_game          ; &09BF
+.jmp_block_copy     : JMP block_copy
+.jmp_calc_scrn_addr : JMP calc_screen_addr
+.jmp_setup_map      : JMP setup_map_render
+.jmp_render_map     : JMP render_map
+.jmp_spawn_sprite   : JMP spawn_sprite
+.jmp_update_sprites : JMP update_sprites
+.jmp_init_game      : JMP init_game
 
-; === Block Copy (&0895-&0966) ===
+; === Block Copy ===
 ; Copies a tile from source to screen memory. 32-byte unrolled inner loop
 ; copies one row of tile data; loops for 2 rows per tile.
-; Self-modifies to save/restore Y and X at &0963/&0965.
+; Self-modifies to save/restore Y and X at bc_restore_y + 1 / bc_restore_x + 1.
 
 .block_copy
     STY bc_restore_y + 1        ; Save Y into self-mod operand
@@ -257,7 +255,7 @@ INCLUDE "tables.asm"
     LDX #&08                   ; Restore X (self-modified)
     RTS
 
-; === Calculate Screen Address (&0967-&0981) ===
+; === Calculate Screen Address ===
 ; Input: &0A = tile X, &0B = tile Y
 ; Output: &02/&03 = screen memory address
 ; Screen display base is &5800 (custom CRTC configuration).
@@ -278,7 +276,7 @@ INCLUDE "tables.asm"
     STA &03
     RTS
 
-; === Setup Map Rendering (&0982-&0996) ===
+; === Setup Map Rendering ===
 ; Converts scroll position (&13/&14) to map data pointer (&06/&07).
 ; Map data is based at &0F00.
 
@@ -296,7 +294,7 @@ INCLUDE "tables.asm"
     STA &07                     ; Map pointer high
     ; Falls through to render_map
 
-; === Render Map (&0997-&09BE) ===
+; === Render Map ===
 ; Renders 16x8 visible tile grid to screen.
 
 .render_map
@@ -324,20 +322,20 @@ INCLUDE "tables.asm"
     BNE render_loop
     RTS
 
-; === Game Initialization (&09BF-&09CF) ===
+; === Game Initialization ===
 
 .init_game
-    JSR via_config_a           ; Init System VIA timer
+    JSR via_config_a           ; Configure System VIA ports
     LDX #&03
 .init_silence
     LDA #&00                    ; Silence value
     JSR set_volume         ; Silence each channel
     DEX
     BPL init_silence
-    JSR via_config_b           ; Init User VIA timer
+    JSR via_config_b           ; Configure System VIA ports
     RTS
 
-; === Animation Token Parser (&09D0-&0A2C) ===
+; === Animation Token Parser ===
 ; Parses animation stream tokens for sprite state machines.
 ; Tokens: &FC=set loop, &FA=loop back, &FE=end, other=frame data.
 
@@ -361,18 +359,18 @@ INCLUDE "tables.asm"
 
 .anim_set_loop
     TYA                         ; Save stream position
-    STA sprite_horiz_speed,X                 ; as loop-back point
+    STA sprite_anim_loop_y,X                 ; as loop-back point
     INY
     LDA (&90),Y                 ; Read repeat count
-    STA sprite_loop_pos,X
+    STA sprite_anim_loop_ctr,X
     INY
     JMP update_sprite_read
 
 .anim_loop_back
     STY anim_saved_y + 1        ; Save current Y (self-modifying immediate)
-    LDY sprite_horiz_speed,X    ; Restore loop-back position
+    LDY sprite_anim_loop_y,X    ; Restore loop-back position
     INY : INY                   ; Advance past loop body
-    DEC sprite_loop_pos,X       ; Decrement repeat counter
+    DEC sprite_anim_loop_ctr,X       ; Decrement repeat counter
     BNE update_sprite_read      ; Loop again if count > 0
 .anim_saved_y
     LDY #&00                    ; Count exhausted (operand patched by STY above)
@@ -397,11 +395,11 @@ INCLUDE "tables.asm"
 .anim_set_horiz
     LDA &63
     LSR A : LSR A
-    STA sprite_vert_dir,X                 ; Horizontal speed
+    STA sprite_horiz_param,X                 ; Horizontal speed
     INY
     JMP update_sprite_read
 
-; === Update Sprites (&0A2D-&0AE7) ===
+; === Update Sprites ===
 ; Main per-frame sprite update.
 ; Sprites 1-3: data-driven animation (objects/hazards follow scripted paths)
 ; Sprite 0: physics-driven movement (player)
@@ -418,7 +416,7 @@ INCLUDE "tables.asm"
     ; Timer expired — read new animation from stream
     LDA #&80
     STA &90                     ; Animation ptr low = &80
-    LDA sprite_loop_count,X                 ; Animation source high for sprite X
+    LDA sprite_anim_src_hi,X                 ; Animation source high for sprite X
     STA &91
     LDY &8C,X                   ; Animation stream index
 
@@ -444,7 +442,7 @@ INCLUDE "tables.asm"
     STY &8C,X                   ; Update animation index
     LDA sprite_vert_speed,X                 ; Vertical speed
     STA &64
-    LDY sprite_vert_dir,X                 ; Horizontal speed
+    LDY sprite_horiz_param,X                 ; Horizontal speed
     JSR spawn_sprite            ; Set up sprite movement
 
 .update_object_next
@@ -529,7 +527,7 @@ INCLUDE "tables.asm"
     DEC &78,X                   ; Just decrement timer
     JMP player_chain
 
-; === SN76489 Sound Chip Write (&0AE8-&0AF9) ===
+; === SN76489 Sound Chip Write ===
 ; Writes a byte to the SN76489 via System VIA.
 ; &FE41 = System VIA ORA (data bus to sound chip).
 ; &FE40 = System VIA ORB, bit 3 = sound chip /WE (active low).
@@ -544,7 +542,7 @@ INCLUDE "tables.asm"
     STA &FE40                   ; System VIA ORB: bit 3 high = deassert /WE
     RTS
 
-; === Set Tone (&0AFA-&0B09) ===
+; === Set Tone ===
 ; Sends SN76489 frequency latch byte (1 cc 0 dddd), then a second
 ; frequency data byte from the physics table.
 
@@ -556,7 +554,7 @@ INCLUDE "tables.asm"
     LDA physics_table,Y         ; Second byte from physics table
     JMP sn76489_write            ; Send frequency data
 
-; === Set Volume (&0B0A-&0B13) ===
+; === Set Volume ===
 ; Sends SN76489 volume/attenuation byte (1 cc 1 dddd).
 ; Caller convention: 0=silent, &0F=loud. EOR inverts to chip
 ; convention where 0=loud, &0F=silent.
@@ -567,7 +565,7 @@ INCLUDE "tables.asm"
     ORA channel_vol_regs,X      ; Volume register byte (&F0/&D0/&B0/&90)
     JMP sn76489_write
 
-; === Channel Register Tables (&0B14-&0B2F) ===
+; === Channel Register Tables ===
 
 .channel_freq_regs
     EQUB &E0, &C0, &A0, &80    ; Ch 3,2,1,0 frequency latch (1 cc 0 0000)
@@ -577,16 +575,16 @@ INCLUDE "tables.asm"
 ; Runtime sprite state (X-indexed, modified during gameplay)
 .sprite_vert_speed
     EQUB &00, &0F, &0E, &0D
-.sprite_vert_dir
+.sprite_horiz_param
     EQUB &00, &01, &01, &01
-.sprite_horiz_speed
+.sprite_anim_loop_y
     EQUB &00, &00, &00, &00
-.sprite_loop_pos
+.sprite_anim_loop_ctr
     EQUB &00, &00, &00, &00
-.sprite_loop_count
+.sprite_anim_src_hi
     EQUB &00, &0C, &0D, &0E
 
-; === Spawn Sprite (&0B30-&0B5C) ===
+; === Spawn Sprite ===
 ; Initializes a sprite slot with position, speed, and movement data.
 ; Entry: &62=timer, &63=direction, &64=speed, Y=sequence index, X=slot
 
@@ -604,7 +602,7 @@ INCLUDE "tables.asm"
     LDA (&60),Y : STA &88,X     ; Initial sub-counter
     RTS
 
-; === System VIA Port Config A (&0B5D-&0B6C) ===
+; === System VIA Port Config A ===
 ; Configures System VIA ports for sound output.
 ; &FE40 = ORB, &FE42 = DDRB, &FE43 = DDRA.
 
@@ -614,7 +612,7 @@ INCLUDE "tables.asm"
     LDA #&FF : STA &FE42        ; DDRB = &FF: all port B bits output
     RTS
 
-; === System VIA Port Config B (&0B6D-&0B7C) ===
+; === System VIA Port Config B ===
 ; Reconfigures System VIA ports (different DDR settings).
 
 .via_config_b
@@ -623,70 +621,70 @@ INCLUDE "tables.asm"
     LDA #&FF : STA &FE42        ; DDRB = &FF: all port B bits output
     RTS
 
-; === Movement Data Pointer Table (&0B7D-&0B8C) ===
-; 8 word entries pointing to movement sequences.
+; === Movement Data Pointer Table ===
+; 7 word entries pointing to movement sequences.
 
 .move_ptr_table
-    EQUW move_seq_0             ; Seq 0 -> &0B8B
-    EQUW move_seq_1             ; Seq 1 -> &0B9D
-    EQUW move_seq_2             ; Seq 2 -> &0BBF
-    EQUW move_seq_3             ; Seq 3 -> &0BA3
-    EQUW move_seq_4             ; Seq 4 -> &0BB1
-    EQUW move_seq_5             ; Seq 5 -> &0BC9
-    EQUW move_seq_6             ; Seq 6 -> &0BD7
+    EQUW move_seq_0             ; Seq 0
+    EQUW move_seq_1             ; Seq 1
+    EQUW move_seq_2             ; Seq 2
+    EQUW move_seq_3             ; Seq 3
+    EQUW move_seq_4             ; Seq 4
+    EQUW move_seq_5             ; Seq 5
+    EQUW move_seq_6             ; Seq 6
 
-; === Movement Data Sequences (&0B8B-&0BE4) ===
+; === Movement Data Sequences ===
 ; Velocity/duration patterns for sprite movement.
 ; Each entry is: velocityY, velocityX, param1, param2
 ; (values like &FD/-3 and &FE/-2 are signed velocity bytes, not special prefixes).
 ; &FF,&FF at the start of each sequence is a chain terminator for the
 ; previous sequence (or initial guard — spawn code sets index=2 to skip past it).
 
-.move_seq_0                     ; &0B8B — pointed to by move_ptr_table
+.move_seq_0
     EQUB &FF, &FF               ; Chain terminator (BMI kills sprite reading byte 0)
     EQUB &28, &00, &04, &04     ; velY=&28, velX=&00
     EQUB &00, &00, &20, &04     ; Pause
     EQUB &F6, &00, &10, &04     ; velY=&F6 (-10)
     EQUB &00, &00, &00, &00     ; Stop
 
-.move_seq_1                     ; &0B9D
+.move_seq_1
     EQUB &FF, &FF               ; Chain terminator
     EQUB &FE, &00, &20, &00     ; velY=&FE (-2), velX=&00
 
-.move_seq_3                     ; &0BA3
+.move_seq_3
     EQUB &FF, &FF               ; Chain terminator
     EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
     EQUB &FD, &0C, &00, &04     ; velY=&FD (-3), velX=&0C
     EQUB &FD, &E0, &00, &F8     ; velY=&FD (-3), velX=&E0
 
-.move_seq_4                     ; &0BB1
+.move_seq_4
     EQUB &FF, &FF               ; Chain terminator
     EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
     EQUB &FD, &08, &00, &04     ; velY=&FD (-3), velX=&08
     EQUB &FD, &E4, &00, &F8     ; velY=&FD (-3), velX=&E4
 
-.move_seq_2                     ; &0BBF
+.move_seq_2
     EQUB &FF, &FF               ; Chain terminator
     EQUB &FE, &01, &01, &04     ; velY=&FE (-2), velX=&01
     EQUB &FE, &FF, &01, &FC     ; velY=&FE (-2), velX=&FF (-1)
 
-.move_seq_5                     ; &0BC9
+.move_seq_5
     EQUB &FF, &FF               ; Chain terminator
     EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
     EQUB &FD, &10, &00, &04     ; velY=&FD (-3), velX=&10
     EQUB &FD, &DC, &00, &F8     ; velY=&FD (-3), velX=&DC
 
-.move_seq_6                     ; &0BD7
+.move_seq_6
     EQUB &FF, &FF               ; Chain terminator
     EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
     EQUB &FD, &08, &00, &04     ; velY=&FD (-3), velX=&08
     EQUB &FD, &E4, &00, &F8     ; velY=&FD (-3), velX=&E4
 
-; === Tile Column Mini-LUT (&0BE5-&0BE8) ===
+; === Tile Column Mini-LUT ===
 .tile_col_lut
     EQUB &00, &40, &80, &C0
 
-; === Tile Address Setup (&0BE9-&0C01) ===
+; === Tile Address Setup ===
 ; Patches the tile graphics base address into the tile renderer using
 ; the current level number (&19) to select the tile set.
 
@@ -704,7 +702,7 @@ INCLUDE "tables.asm"
     LDA &01
     STA tile_gfx_load + 2
 
-; === Tile Renderer (&0C02-&0C79) ===
+; === Tile Renderer ===
 ; Core tile drawing routine. Reads tile graphics, masks with &0100 table,
 ; overlays onto screen content, and writes back.
 

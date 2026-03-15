@@ -1,5 +1,5 @@
 ; ============================================================================
-; FROGMAN — Music and Sound Data (&0C78-&0EFF)
+; FROGMAN — Music and Sound Data
 ; ============================================================================
 ; Contains music note/duration pairs and an encrypted data block.
 ;
@@ -13,19 +13,15 @@
 ; pointers at &0D3D/&0D3E.
 ;
 ; There are three tunes interleaved with encrypted blocks:
-;   Tune 1: &0C78-&0CFF
-;   Tune 2: &0D80-&0DFF (encrypted block at &0D00-&0D7F precedes)
-;   Tune 3: &0E80-&0EFF (encrypted block at &0E00-&0E7F precedes)
+;   Tune 1 (followed by padding)
+;   Tune 2 (encrypted block precedes)
+;   Tune 3 (encrypted block precedes)
 ; ============================================================================
 
-; Music data begins immediately after the tile renderer's RTS at &0C79.
+; Music data begins immediately after the tile renderer's RTS.
 ; No ORG needed — this continues from wherever engine.asm left off.
-; The engine's BNE tile_outer has its offset byte at &0C78, RTS at &0C79,
-; so P% should be &0C7A here.
 
-; --- Tune 1: Main theme ---
-; Starts at &0C7A, immediately after the tile renderer's RTS at &0C79.
-; (The BNE offset byte at &0C78 and RTS at &0C79 are part of engine.asm)
+; --- Tune 1: Tune 1 (purpose unconfirmed) ---
 .music_data
     EQUB &4F, &56, &20, &52     ; "OV R" — ASCII remnant or data header
     EQUB &30, &2C, &07, &F1     ; Tune header / initial note data
@@ -63,45 +59,45 @@
     EQUB &34, &1E
     EQUB &FE, &FF              ; End of tune 1
 
-    ; Tune metadata/padding
+    ; Unused padding to page boundary before sound_state_block
     EQUB &DD, &07, &4F, &47
     EQUB &B2, &DA
 
-; --- Sound state block (&0D00-&0D7F) ---
+; --- Sound state block ---
 ; This 128-byte block is encrypted on disc but decrypted at runtime
 ; by the loader. Four locations within it are used as live mutable
 ; state by the IRQ handler:
-;   music_note_reset  (+&09) — patched with &2F silence token on note end
-;   music_ptr_lo      (+&3D) — low byte of music playback pointer (INC'd)
-;   music_ptr_hi      (+&3E) — high byte of music playback pointer (INC'd)
-;   music_env_patch   (+&4C) — patched with &48 on final envelope tick
+;   music_note_reset  — patched with &2F silence token on note end
+;   music_ptr_lo      — low byte of music playback pointer (INC'd)
+;   music_ptr_hi      — high byte of music playback pointer (INC'd)
+;   music_env_patch   — patched with &48 on final envelope tick
 .sound_state_block
-    EQUB &35, &D7, &2D, &49, &04, &BC, &E5, &79  ; +&00
-    EQUB &71                                       ; +&08
-.music_note_reset                                  ; +&09: patched with &2F on note end
-    EQUB &90, &32, &E7, &91, &5D, &9E, &5A        ; +&09
-    EQUB &41, &3A, &96, &48, &5E, &01, &EF, &C7   ; +&10
-    EQUB &91, &61, &E2, &13, &36, &22, &E8, &2F   ; +&18
-    EQUB &46, &70, &D7, &15, &FD, &DF, &EF, &7D   ; +&20
-    EQUB &CE, &33, &08, &C3, &CC, &FF, &B8, &62   ; +&28
-    EQUB &0C, &B4, &A0, &BE, &47, &9F, &10, &54   ; +&30
-    EQUB &9C, &3D, &FC, &23, &EC                   ; +&38
-.music_ptr_lo                                      ; +&3D: music playback pointer low
+    EQUB &35, &D7, &2D, &49, &04, &BC, &E5, &79
+    EQUB &71
+.music_note_reset                                  ; patched with &2F on note end
+    EQUB &90, &32, &E7, &91, &5D, &9E, &5A
+    EQUB &41, &3A, &96, &48, &5E, &01, &EF, &C7
+    EQUB &91, &61, &E2, &13, &36, &22, &E8, &2F
+    EQUB &46, &70, &D7, &15, &FD, &DF, &EF, &7D
+    EQUB &CE, &33, &08, &C3, &CC, &FF, &B8, &62
+    EQUB &0C, &B4, &A0, &BE, &47, &9F, &10, &54
+    EQUB &9C, &3D, &FC, &23, &EC
+.music_ptr_lo                                      ; music playback pointer low
     EQUB &DB
-.music_ptr_hi                                      ; +&3E: music playback pointer high
-    EQUB &27, &52                                  ; +&3F
-    EQUB &BC, &28, &AD, &54, &D3, &5B, &DD, &F8   ; +&40
-    EQUB &74, &97, &D3, &A9                        ; +&48
-.music_env_patch                                   ; +&4C: patched with &48 on envelope tick
-    EQUB &63, &85, &9E, &ED                        ; +&4C
-    EQUB &58, &7B, &99, &9E, &23, &38, &F9, &58   ; +&50
-    EQUB &EE, &A7, &FE, &BF, &AF, &B0, &81, &35   ; +&58
-    EQUB &4B, &28, &CA, &01, &03, &A6, &61, &22   ; +&60
-    EQUB &B4, &EB, &50, &8B, &6B, &39, &13, &CB   ; +&68
-    EQUB &D4, &29, &1F, &56, &73, &D1, &92, &59   ; +&70
+.music_ptr_hi                                      ; music playback pointer high
+    EQUB &27, &52
+    EQUB &BC, &28, &AD, &54, &D3, &5B, &DD, &F8
+    EQUB &74, &97, &D3, &A9
+.music_env_patch                                   ; patched with &48 on envelope tick
+    EQUB &63, &85, &9E, &ED
+    EQUB &58, &7B, &99, &9E, &23, &38, &F9, &58
+    EQUB &EE, &A7, &FE, &BF, &AF, &B0, &81, &35
+    EQUB &4B, &28, &CA, &01, &03, &A6, &61, &22
+    EQUB &B4, &EB, &50, &8B, &6B, &39, &13, &CB
+    EQUB &D4, &29, &1F, &56, &73, &D1, &92, &59
     EQUB &A4, &58, &DE, &01, &04, &6A, &65, &65
 
-; --- Tune 2: Secondary theme (&0D80-&0DFF) ---
+; --- Tune 2: Tune 2 (purpose unconfirmed) ---
 .music_data_2
     EQUB &07, &E1
     ; Bass line melody
@@ -138,8 +134,8 @@
     EQUB &BC, &B8, &B4, &B0
     EQUB &FE, &FF              ; End of tune 2
 
-; --- Encrypted/compressed data block (&0E00-&0E7F) ---
-.encrypted_block_2
+; --- Encrypted/compressed data block ---
+.sound_data_block_2  ; Encrypted on disc, decrypted at runtime; no code references into it have been identified
     EQUB &83, &BD, &17, &06, &4C, &E1, &D3, &F8
     EQUB &81, &3C, &7D, &C2, &6F, &85, &F6, &B2
     EQUB &A5, &B9, &2D, &B1, &E2, &8C, &0C, &03
@@ -157,7 +153,7 @@
     EQUB &94, &9D, &DC, &02, &41, &0A, &B7, &48
     EQUB &6F, &90, &FF, &54, &00, &3D, &79, &53
 
-; --- Tune 3: Game over / bonus theme (&0E80-&0EFF) ---
+; --- Tune 3: Tune 3 (purpose unconfirmed) ---
 .music_data_3
     EQUB &07, &D1
     ; Short melodic sequence
@@ -194,6 +190,6 @@
     EQUB &6B, &91, &D5, &BF
     EQUB &DA, &70, &FC, &86
     EQUB &2A, &98, &73
-.anim_timing_const                       ; &0EF7 — referenced by anim_frame_data
+.anim_timing_const
     EQUB &0F, &36, &34, &30, &38
     EQUB &38, &29, &34, &65

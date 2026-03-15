@@ -1,6 +1,6 @@
 ; ============================================================================
 ; FROGMAN — Lookup Tables
-; Loaded at &0700-&08FF
+; Lookup Tables
 ;
 ; These tables are pre-populated in memory before the game engine runs.
 ; They provide fast lookups for tile source addressing, colour cycling,
@@ -8,14 +8,13 @@
 ; ============================================================================
 
 ; ============================================================================
-; Tile Source Low-Byte LUT (&0700-&073F)
+; Tile Source Low-Byte LUT
 ; ============================================================================
 ; Maps a tile index (0-63) to the low byte of its graphics source address.
 ; Tiles are stored in 256-byte banks; each bank holds 4 tiles at offsets
 ; &00, &40, &80, &C0 (64 bytes per tile). The repeating pattern assigns
 ; each group of 4 consecutive tiles to the same source bank.
 
-; P% should be &0700 here (flowing from engine.asm padding)
 .tile_src_lo
     EQUB &00, &40, &80, &C0     ; Tiles 0-3: offsets within source bank
     EQUB &00, &40, &80, &C0     ; Tiles 4-7
@@ -35,7 +34,7 @@
     EQUB &00, &40, &80, &C0     ; Tiles 60-63
 
 ; ============================================================================
-; Tile Source High-Byte LUT (&0740-&077F)
+; Tile Source High-Byte LUT
 ; ============================================================================
 ; Maps a tile index to the high byte of its graphics source address.
 ; Tile graphics are stored in the region &3800-&47FF. Each group of 4
@@ -62,7 +61,7 @@
     EQUB &47, &47, &47, &47     ; Tiles 60-63: source bank &4700
 
 ; ============================================================================
-; Palette / Colour Fade Tables (&0780-&07FF)
+; Palette / Colour Fade Tables
 ; ============================================================================
 ; 128 bytes of colour values used for palette cycling and fade effects.
 ; Each entry is a 4-bit logical colour value (0-15). The tables are
@@ -108,7 +107,7 @@
     EQUB &0C, &0B, &0A, &0A
 
 ; ============================================================================
-; Descending Curve Table (&0800-&087F)
+; Descending Curve Table
 ; ============================================================================
 ; 128-byte lookup table providing a descending curve from 63 (&3F) to 1.
 ; Primary runtime use is as the second byte of SN76489 frequency data,
@@ -116,7 +115,6 @@
 ; May also be used for physics calculations (the curve shape would
 ; suit deceleration or bounce dynamics).
 
-; P% should be &0800 here (flowing from palette tables)
 .physics_table
     EQUB &3F, &3E, &3C, &3A     ; 63, 62, 60, 58 — high values
     EQUB &38, &37, &35, &34     ; 56, 55, 53, 52
