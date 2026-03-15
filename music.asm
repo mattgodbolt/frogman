@@ -67,11 +67,11 @@
     EQUB &DD, &07, &4F, &47
     EQUB &B2, &DA
 
-; --- Encrypted/compressed data block (&0D00-&0D7F) ---
-; This 128-byte block appears to be encrypted or compressed data,
-; possibly level-specific music or a lookup table that gets
-; decrypted at runtime by the loader.
-.encrypted_block_1
+; --- Sound state block (&0D00-&0D7F) ---
+; This 128-byte block is encrypted on disc but decrypted at runtime
+; by the loader. At runtime it contains live sound/music state data
+; that is patched by the IRQ handler via self-modifying code.
+.sound_state_block
     EQUB &35, &D7, &2D, &49, &04, &BC, &E5, &79
     EQUB &71, &90, &32, &E7, &91, &5D, &9E, &5A
     EQUB &41, &3A, &96, &48, &5E, &01, &EF, &C7

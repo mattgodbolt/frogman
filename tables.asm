@@ -3,64 +3,63 @@
 ; Loaded at &0700-&08FF
 ;
 ; These tables are pre-populated in memory before the game engine runs.
-; They provide fast lookups for screen addressing, colour cycling, and
-; physics/gravity calculations.
+; They provide fast lookups for tile source addressing, colour cycling,
+; and sound frequency envelope / descending curve calculations.
 ; ============================================================================
 
 ; ============================================================================
-; Screen Column Address LUT (&0700-&073F)
+; Tile Source Low-Byte LUT (&0700-&073F)
 ; ============================================================================
-; Maps a tile column index (0-63) to the low byte of its screen address.
-; Each tile is 8 pixels wide, but in MODE 2 each pixel row is interleaved
-; across memory in 4-byte groups, giving column offsets of &00, &40, &80, &C0
-; repeating. This pattern corresponds to the 4 character cells within each
-; 320-byte (&140) screen row.
+; Maps a tile index (0-63) to the low byte of its graphics source address.
+; Tiles are stored in 256-byte banks; each bank holds 4 tiles at offsets
+; &00, &40, &80, &C0 (64 bytes per tile). The repeating pattern assigns
+; each group of 4 consecutive tiles to the same source bank.
 
 ; P% should be &0700 here (flowing from engine.asm padding)
-.screen_col_lut
-    EQUB &00, &40, &80, &C0     ; Columns 0-3
-    EQUB &00, &40, &80, &C0     ; Columns 4-7
-    EQUB &00, &40, &80, &C0     ; Columns 8-11
-    EQUB &00, &40, &80, &C0     ; Columns 12-15
-    EQUB &00, &40, &80, &C0     ; Columns 16-19
-    EQUB &00, &40, &80, &C0     ; Columns 20-23
-    EQUB &00, &40, &80, &C0     ; Columns 24-27
-    EQUB &00, &40, &80, &C0     ; Columns 28-31
-    EQUB &00, &40, &80, &C0     ; Columns 32-35
-    EQUB &00, &40, &80, &C0     ; Columns 36-39
-    EQUB &00, &40, &80, &C0     ; Columns 40-43
-    EQUB &00, &40, &80, &C0     ; Columns 44-47
-    EQUB &00, &40, &80, &C0     ; Columns 48-51
-    EQUB &00, &40, &80, &C0     ; Columns 52-55
-    EQUB &00, &40, &80, &C0     ; Columns 56-59
-    EQUB &00, &40, &80, &C0     ; Columns 60-63
+.tile_src_lo
+    EQUB &00, &40, &80, &C0     ; Tiles 0-3: offsets within source bank
+    EQUB &00, &40, &80, &C0     ; Tiles 4-7
+    EQUB &00, &40, &80, &C0     ; Tiles 8-11
+    EQUB &00, &40, &80, &C0     ; Tiles 12-15
+    EQUB &00, &40, &80, &C0     ; Tiles 16-19
+    EQUB &00, &40, &80, &C0     ; Tiles 20-23
+    EQUB &00, &40, &80, &C0     ; Tiles 24-27
+    EQUB &00, &40, &80, &C0     ; Tiles 28-31
+    EQUB &00, &40, &80, &C0     ; Tiles 32-35
+    EQUB &00, &40, &80, &C0     ; Tiles 36-39
+    EQUB &00, &40, &80, &C0     ; Tiles 40-43
+    EQUB &00, &40, &80, &C0     ; Tiles 44-47
+    EQUB &00, &40, &80, &C0     ; Tiles 48-51
+    EQUB &00, &40, &80, &C0     ; Tiles 52-55
+    EQUB &00, &40, &80, &C0     ; Tiles 56-59
+    EQUB &00, &40, &80, &C0     ; Tiles 60-63
 
 ; ============================================================================
-; Screen Row High-Byte LUT (&0740-&077F)
+; Tile Source High-Byte LUT (&0740-&077F)
 ; ============================================================================
-; Maps a tile row index to the high byte of the screen address.
-; Each tile row occupies 4 character rows (32 pixel rows in MODE 2).
-; The screen starts at &3800 and each character row is &140 bytes apart,
-; but tiles span multiple rows, so each group of 4 entries covers one
-; tile row height. Values run from &38 (top of screen) to &47.
+; Maps a tile index to the high byte of its graphics source address.
+; Tile graphics are stored in the region &3800-&47FF. Each group of 4
+; entries shares the same high byte, corresponding to tiles sharing
+; the same 256-byte source bank (each tile is 2 character rows = 16
+; pixels tall). Values run from &38 to &47.
 
-.screen_row_lut
-    EQUB &38, &38, &38, &38     ; Tile row 0: screen &3800-&38FF
-    EQUB &39, &39, &39, &39     ; Tile row 1: screen &3900-&39FF
-    EQUB &3A, &3A, &3A, &3A     ; Tile row 2: screen &3A00-&3AFF
-    EQUB &3B, &3B, &3B, &3B     ; Tile row 3: screen &3B00-&3BFF
-    EQUB &3C, &3C, &3C, &3C     ; Tile row 4: screen &3C00-&3CFF
-    EQUB &3D, &3D, &3D, &3D     ; Tile row 5: screen &3D00-&3DFF
-    EQUB &3E, &3E, &3E, &3E     ; Tile row 6: screen &3E00-&3EFF
-    EQUB &3F, &3F, &3F, &3F     ; Tile row 7: screen &3F00-&3FFF
-    EQUB &40, &40, &40, &40     ; Tile row 8: screen &4000-&40FF
-    EQUB &41, &41, &41, &41     ; Tile row 9: screen &4100-&41FF
-    EQUB &42, &42, &42, &42     ; Tile row 10: screen &4200-&42FF
-    EQUB &43, &43, &43, &43     ; Tile row 11: screen &4300-&43FF
-    EQUB &44, &44, &44, &44     ; Tile row 12: screen &4400-&44FF
-    EQUB &45, &45, &45, &45     ; Tile row 13: screen &4500-&45FF
-    EQUB &46, &46, &46, &46     ; Tile row 14: screen &4600-&46FF
-    EQUB &47, &47, &47, &47     ; Tile row 15: screen &4700-&47FF
+.tile_src_hi
+    EQUB &38, &38, &38, &38     ; Tiles 0-3: source bank &3800
+    EQUB &39, &39, &39, &39     ; Tiles 4-7: source bank &3900
+    EQUB &3A, &3A, &3A, &3A     ; Tiles 8-11: source bank &3A00
+    EQUB &3B, &3B, &3B, &3B     ; Tiles 12-15: source bank &3B00
+    EQUB &3C, &3C, &3C, &3C     ; Tiles 16-19: source bank &3C00
+    EQUB &3D, &3D, &3D, &3D     ; Tiles 20-23: source bank &3D00
+    EQUB &3E, &3E, &3E, &3E     ; Tiles 24-27: source bank &3E00
+    EQUB &3F, &3F, &3F, &3F     ; Tiles 28-31: source bank &3F00
+    EQUB &40, &40, &40, &40     ; Tiles 32-35: source bank &4000
+    EQUB &41, &41, &41, &41     ; Tiles 36-39: source bank &4100
+    EQUB &42, &42, &42, &42     ; Tiles 40-43: source bank &4200
+    EQUB &43, &43, &43, &43     ; Tiles 44-47: source bank &4300
+    EQUB &44, &44, &44, &44     ; Tiles 48-51: source bank &4400
+    EQUB &45, &45, &45, &45     ; Tiles 52-55: source bank &4500
+    EQUB &46, &46, &46, &46     ; Tiles 56-59: source bank &4600
+    EQUB &47, &47, &47, &47     ; Tiles 60-63: source bank &4700
 
 ; ============================================================================
 ; Palette / Colour Fade Tables (&0780-&07FF)
@@ -109,19 +108,17 @@
     EQUB &0C, &0B, &0A, &0A
 
 ; ============================================================================
-; Physics / Gravity Table (&0800-&087F)
+; Descending Curve Table (&0800-&087F)
 ; ============================================================================
 ; 128-byte lookup table providing a descending curve from 63 (&3F) to 1.
-; Used for gravity/falling physics: as a sprite falls, an index into this
-; table increases, producing decreasing downward velocity — simulating
-; the effect of terminal velocity or bounce deceleration.
-;
-; Also used by set_volume as a volume envelope table — the same curve
-; shape provides a natural-sounding amplitude decay for sound effects.
+; Primary runtime use is as the second byte of SN76489 frequency data,
+; called by set_tone to provide sound frequency envelope shaping.
+; May also be used for physics calculations (the curve shape would
+; suit deceleration or bounce dynamics).
 
 ; P% should be &0800 here (flowing from palette tables)
 .physics_table
-    EQUB &3F, &3E, &3C, &3A     ; 63, 62, 60, 58 — initial fast descent
+    EQUB &3F, &3E, &3C, &3A     ; 63, 62, 60, 58 — high values
     EQUB &38, &37, &35, &34     ; 56, 55, 53, 52
     EQUB &32, &31, &2F, &2E     ; 50, 49, 47, 46
     EQUB &2D, &2B, &2A, &29     ; 45, 43, 42, 41
@@ -145,11 +142,11 @@
     EQUB &05, &05, &05, &05     ; 5, 5, 5, 5
     EQUB &05, &04, &04, &04     ; 5, 4, 4, 4
     EQUB &04, &04, &04, &04     ; 4, 4, 4, 4
-    EQUB &03, &03, &03, &03     ; 3, 3, 3, 3 — near-terminal velocity
+    EQUB &03, &03, &03, &03     ; 3, 3, 3, 3 — low values
     EQUB &03, &03, &03, &03     ; 3, 3, 3, 3
     EQUB &03, &03, &02, &02     ; 3, 3, 2, 2
     EQUB &02, &02, &02, &02     ; 2, 2, 2, 2
     EQUB &02, &02, &02, &02     ; 2, 2, 2, 2
     EQUB &02, &02, &02, &02     ; 2, 2, 2, 2
-    EQUB &01, &01, &01, &01     ; 1, 1, 1, 1 — minimum velocity
+    EQUB &01, &01, &01, &01     ; 1, 1, 1, 1 — minimum values
     EQUB &01, &01, &01, &01     ; 1, 1, 1, 1

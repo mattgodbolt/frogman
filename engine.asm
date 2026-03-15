@@ -16,8 +16,8 @@
 ; ############################################################################
 ; IRQ HANDLER (&0600-&065D)
 ; ############################################################################
-; Handles hardware interrupts from the System VIA timers:
-;   - Timer 1 + Timer 2 both set → music note sequencing
+; Handles hardware interrupts from the System VIA:
+;   - CA1+CA2 (VSYNC-related) both set → music note sequencing
 ;   - Other sources → sound envelope timing / delay generation
 ;
 ; Uses self-modifying code to patch values into the music data stream.
@@ -30,7 +30,7 @@ ORG &0600
 
     LDA &FE28                   ; Read System VIA interrupt flag register
     AND #&3F                    ; Mask to relevant bits
-    CMP #&03                    ; Both Timer 1 and Timer 2?
+    CMP #&03                    ; CA1+CA2 both set? (CA1 = VSYNC on BBC)
     BEQ music_handler           ; Yes — handle music
 
     AND #&FC                    ; Check non-timer interrupt sources
@@ -58,21 +58,22 @@ ORG &0600
     BCC delay_loop              ; Sound disabled — skip
 
     LDA #&48                    ; Silence token
-    STA encrypted_block_1 + &4C                   ; Patch into music data stream
+    STA sound_state_block + &4C                   ; Patch silence into live sound state (decrypted at runtime)
 
 ; --- VIA Timer 2 delay loop ---
-; Generates a variable-length delay by spinning on Timer 2.
+; Brief busy-wait: writes to Timer 2 low counter, reads it back.
+; They differ once the counter ticks, creating a short delay.
 
 .delay_loop
     INC &CF                     ; Increment delay counter
     LDA &CF                     ; Load delay value
 .delay_spin
-    STA &FE2A                   ; Write to Timer 2 counter low
-    CMP &FE2A                   ; Read back — has timer latched?
-    BNE delay_spin              ; No — keep trying same value
+    STA &FE2A                   ; Write to Timer 2 low counter
+    CMP &FE2A                   ; Read back — values differ once counter ticks
+    BNE delay_spin              ; Brief busy-wait creating a short delay
 
-    LDA &A7                     ; Load saved IFR value
-    STA &FE28                   ; Clear interrupt flags
+    LDA &A7                     ; IFR acknowledge mask
+    STA &FE28                   ; Write to IFR to clear flagged interrupts
     PLA                         ; Restore A
     RTI
 
@@ -82,33 +83,33 @@ ORG &0600
 
 .music_handler
     LDA &FE2B                   ; Read Timer 2 high (pseudo-random seed)
-    STA &8000                   ; Write to sound output
+    STA &8000                   ; Write to sideways RAM (purpose unclear — possibly RNG seed or bank signalling)
 
-    INC encrypted_block_1 + &3D                   ; Advance music pointer low (self-mod)
+    INC sound_state_block + &3D                   ; Advance music pointer low (live runtime data)
     BNE skip_music_hi
-    INC encrypted_block_1 + &3E                   ; Carry to music pointer high
+    INC sound_state_block + &3E                   ; Carry to music pointer high (live runtime data)
 
 .skip_music_hi
     DEC &A6                     ; Decrement note duration
     BNE done_music              ; Note still playing
 
     LDA #&2F                    ; Reset/silence token
-    STA encrypted_block_1 + &09                   ; Patch into music data
+    STA sound_state_block + &09                   ; Patch reset into live sound state (decrypted at runtime)
 
 .done_music
     PLA
     RTI
 
-; --- Timer acknowledge (no action needed) ---
-.usrvia_clear
-    LDA &FE2B                   ; Read to acknowledge interrupt
+; --- System VIA Timer 2 acknowledge ---
+.sysvia_t2_ack
+    LDA &FE2B                   ; Read System VIA Timer 2 High to acknowledge
     PLA
     RTI
 
-; --- Disable sound interrupts ---
+; --- Reset Timer 2 high byte ---
 .irq_disable
     LDA #&00
-    STA &FE2B                   ; Zero Timer 2 high byte
+    STA &FE2B                   ; Reset Timer 2 high byte to zero
     PLA
     RTI
 
@@ -190,10 +191,10 @@ INCLUDE "tables.asm"
     STY bc_restore_y + 1        ; Save Y into self-mod operand
     STX bc_restore_x + 1        ; Save X into self-mod operand
     TAY                         ; Tile index -> Y for LUT lookup
-    LDA screen_col_lut,Y                 ; Screen column low byte from LUT
-    STA &00                     ; Source pointer low
-    LDA screen_row_lut,Y                 ; Screen row high byte from LUT
-    STA &01                     ; Source pointer high
+    LDA tile_src_lo,Y                 ; Tile graphics source low byte
+    STA &00                     ; Tile source pointer low
+    LDA tile_src_hi,Y                 ; Tile graphics source high byte
+    STA &01                     ; Tile source pointer high
     JSR calc_screen_addr        ; Calculate screen dest address -> &02/&03
     LDX #&01                    ; Copy 2 rows (counter: 1, 0)
 
@@ -259,7 +260,8 @@ INCLUDE "tables.asm"
 ; === Calculate Screen Address (&0967-&0981) ===
 ; Input: &0A = tile X, &0B = tile Y
 ; Output: &02/&03 = screen memory address
-; Calculates: addr_hi = (Y * 2) + &58 + hi(X * 8), addr_lo = lo(X * 8)
+; Screen display base is &5800 (custom CRTC configuration).
+; Calculates: addr_hi = (tile_Y * 2) + &58 + hi(tile_X * 8), addr_lo = lo(tile_X * 8)
 
 .calc_screen_addr
     LDA &0A                     ; Tile X
@@ -272,7 +274,7 @@ INCLUDE "tables.asm"
     LDA &0B                     ; Tile Y
     ASL A                       ; x2
     ADC &03
-    ADC #&58                    ; Screen base &5800
+    ADC #&58                    ; Screen display base &5800
     STA &03
     RTS
 
@@ -325,14 +327,14 @@ INCLUDE "tables.asm"
 ; === Game Initialization (&09BF-&09CF) ===
 
 .init_game
-    JSR setup_sys_via           ; Init System VIA timer
+    JSR via_config_a           ; Init System VIA timer
     LDX #&03
 .init_silence
     LDA #&00                    ; Silence value
-    JSR set_attenuation         ; Silence each channel
+    JSR set_volume         ; Silence each channel
     DEX
     BPL init_silence
-    JSR setup_usr_via           ; Init User VIA timer
+    JSR via_config_b           ; Init User VIA timer
     RTS
 
 ; === Animation Token Parser (&09D0-&0A2C) ===
@@ -401,17 +403,17 @@ INCLUDE "tables.asm"
 
 ; === Update Sprites (&0A2D-&0AE7) ===
 ; Main per-frame sprite update.
-; Sprites 1-3: data-driven animation (enemies follow scripted paths)
-; Sprite 0: physics-driven movement (player with gravity)
+; Sprites 1-3: data-driven animation (objects/hazards follow scripted paths)
+; Sprite 0: physics-driven movement (player)
 
 .update_sprites
-    JSR setup_sys_via           ; Refresh timer
+    JSR via_config_a           ; Refresh timer
 
-    LDX #&01                    ; Start with enemy sprites
+    LDX #&01                    ; Start with object sprites
 
-.update_enemy_loop
+.update_object_loop
     LDA &78,X                   ; Animation timer
-    BNE update_enemy_next       ; Active — skip to next
+    BNE update_object_next       ; Active — skip to next
 
     ; Timer expired — read new animation from stream
     LDA #&80
@@ -445,28 +447,28 @@ INCLUDE "tables.asm"
     LDY sprite_vert_dir,X                 ; Horizontal speed
     JSR spawn_sprite            ; Set up sprite movement
 
-.update_enemy_next
+.update_object_next
     INX
-    CPX #&04                    ; All enemies done?
-    BNE update_enemy_loop
+    CPX #&04                    ; All objects done?
+    BNE update_object_loop
 
-    ; --- Player sprite (slot 0) ---
+    ; --- Physics/movement loop (sprites 0-3) ---
     LDX #&00
 
 .update_player
-    LDA &70,X                   ; Player direction/speed
+    LDA &70,X                   ; Sprite direction/speed
     BEQ player_no_movement      ; Not moving
 
     LSR A                       ; Strip direction bit
-    JSR set_volume              ; Update sound
+    JSR set_tone                ; Set movement sound frequency
 
     LDA &78,X                   ; Animation timer
     BEQ player_chain            ; Timer expired
 
-    ; Apply gravity via physics table
+    ; Set sound volume based on sub-pixel Y position
     LDA &74,X                   ; Y sub-pixel
-    LSR A : LSR A : LSR A : LSR A  ; -> physics table index
-    JSR set_attenuation         ; Gravity effect
+    LSR A : LSR A : LSR A : LSR A  ; -> table index
+    JSR set_volume         ; Volume from position
 
     ; Load movement data pointers
     LDY &84,X
@@ -513,14 +515,14 @@ INCLUDE "tables.asm"
 
 .sprite_kill
     LDA #&00
-    JSR set_attenuation         ; Silence channel
+    JSR set_volume         ; Silence channel
 
 .player_chain
     INX
     CPX #&04                    ; All sprites done?
     BNE update_player
 
-    JSR setup_usr_via           ; Refresh timer
+    JSR via_config_b           ; Refresh timer
     RTS
 
 .player_no_movement
@@ -528,44 +530,49 @@ INCLUDE "tables.asm"
     JMP player_chain
 
 ; === SN76489 Sound Chip Write (&0AE8-&0AF9) ===
-; Writes a byte to the SN76489 via User VIA.
-; Active-low WE: assert, wait 4 NOPs (~8us), deassert.
+; Writes a byte to the SN76489 via System VIA.
+; &FE41 = System VIA ORA (data bus to sound chip).
+; &FE40 = System VIA ORB, bit 3 = sound chip /WE (active low).
+; Writing &00 asserts WE, &08 deasserts it.
 
 .sn76489_write
-    STA &FE41                   ; Data -> port A
+    STA &FE41                   ; Data byte -> System VIA port A (sound chip bus)
     LDA #&00
-    STA &FE40                   ; WE low (assert)
-    NOP : NOP : NOP : NOP       ; Wait for chip timing
+    STA &FE40                   ; System VIA ORB: bit 3 low = assert /WE
+    NOP : NOP : NOP : NOP       ; Wait for SN76489 timing (~4us)
     LDA #&08
-    STA &FE40                   ; WE high (deassert)
+    STA &FE40                   ; System VIA ORB: bit 3 high = deassert /WE
     RTS
 
-; === Set Volume (&0AFA-&0B09) ===
-; Sends volume register + palette value, then envelope from physics table.
+; === Set Tone (&0AFA-&0B09) ===
+; Sends SN76489 frequency latch byte (1 cc 0 dddd), then a second
+; frequency data byte from the physics table.
+
+.set_tone
+    TAY
+    LDA channel_freq_regs,X     ; Frequency register byte (&E0/&C0/&A0/&80)
+    ORA palette_tables,Y        ; OR in low nibble from palette table
+    JSR sn76489_write            ; Send frequency latch
+    LDA physics_table,Y         ; Second byte from physics table
+    JMP sn76489_write            ; Send frequency data
+
+; === Set Volume (&0B0A-&0B13) ===
+; Sends SN76489 volume/attenuation byte (1 cc 1 dddd).
+; Caller convention: 0=silent, &0F=loud. EOR inverts to chip
+; convention where 0=loud, &0F=silent.
 
 .set_volume
-    TAY
-    LDA channel_vol_regs,X                 ; Channel volume register
-    ORA palette_tables,Y                 ; OR with palette/volume value
-    JSR sn76489_write
-    LDA physics_table,Y                 ; Envelope from physics table (dual-purpose!)
-    JMP sn76489_write
-
-; === Set Attenuation (&0B0A-&0B13) ===
-; EOR #&0F inverts so 0=max attenuation (silence), 15=min (loud).
-
-.set_attenuation
-    EOR #&0F                    ; Invert volume
-    AND #&0F                    ; 4-bit mask
-    ORA channel_freq_regs,X                 ; Channel frequency register
+    EOR #&0F                    ; Invert: caller 0=silent -> chip &0F=silent
+    AND #&0F                    ; Mask to 4-bit attenuation
+    ORA channel_vol_regs,X      ; Volume register byte (&F0/&D0/&B0/&90)
     JMP sn76489_write
 
 ; === Channel Register Tables (&0B14-&0B2F) ===
 
-.channel_vol_regs
-    EQUB &E0, &C0, &A0, &80    ; Ch 3,2,1,0 volume registers
 .channel_freq_regs
-    EQUB &F0, &D0, &B0, &90    ; Ch 3,2,1,0 frequency registers
+    EQUB &E0, &C0, &A0, &80    ; Ch 3,2,1,0 frequency latch (1 cc 0 0000)
+.channel_vol_regs
+    EQUB &F0, &D0, &B0, &90    ; Ch 3,2,1,0 volume/atten (1 cc 1 0000)
 
 ; Runtime sprite state (X-indexed, modified during gameplay)
 .sprite_vert_speed
@@ -592,27 +599,28 @@ INCLUDE "tables.asm"
     TYA : ASL A : TAY           ; Sequence index x2
     LDA move_ptr_table,Y : STA &7C,X : STA &60  ; Movement ptr low
     LDA move_ptr_table + 1,Y : STA &80,X : STA &61  ; Movement ptr high
-    LDA #&02 : STA &84,X        ; Movement index (skip header)
+    LDA #&02 : STA &84,X        ; Movement index (skip past chain terminator)
     LDY #&04
     LDA (&60),Y : STA &88,X     ; Initial sub-counter
     RTS
 
-; === Setup System VIA Timer (&0B5D-&0B6C) ===
-; Timer 1 period = &FFFF (~65ms at 1MHz) for music tempo.
+; === System VIA Port Config A (&0B5D-&0B6C) ===
+; Configures System VIA ports for sound output.
+; &FE40 = ORB, &FE42 = DDRB, &FE43 = DDRA.
 
-.setup_sys_via
-    LDA #&0B : STA &FE40        ; Select register
-    LDA #&FF : STA &FE43        ; Timer 1 high = &FF
-    LDA #&FF : STA &FE42        ; Timer 1 low = &FF
+.via_config_a
+    LDA #&0B : STA &FE40        ; ORB = &0B: bit 3 high = sound /WE deasserted
+    LDA #&FF : STA &FE43        ; DDRA = &FF: all port A bits output
+    LDA #&FF : STA &FE42        ; DDRB = &FF: all port B bits output
     RTS
 
-; === Setup User VIA Timer (&0B6D-&0B7C) ===
-; Timer 1 period = &7FFF (~33ms) for sound generation.
+; === System VIA Port Config B (&0B6D-&0B7C) ===
+; Reconfigures System VIA ports (different DDR settings).
 
-.setup_usr_via
-    LDA #&03 : STA &FE40        ; Select register
-    LDA #&7F : STA &FE43        ; Timer 1 high = &7F
-    LDA #&FF : STA &FE42        ; Timer 1 low = &FF
+.via_config_b
+    LDA #&03 : STA &FE40        ; ORB = &03: bit 3 low = sound /WE asserted
+    LDA #&7F : STA &FE43        ; DDRA = &7F: bit 7 input, rest output
+    LDA #&FF : STA &FE42        ; DDRB = &FF: all port B bits output
     RTS
 
 ; === Movement Data Pointer Table (&0B7D-&0B8C) ===
@@ -629,49 +637,50 @@ INCLUDE "tables.asm"
 
 ; === Movement Data Sequences (&0B8B-&0BE4) ===
 ; Velocity/duration patterns for sprite movement.
-; &FF,&FF = sequence terminator. &FD prefix = signed velocity.
-; &FE = reverse direction. Each step: velY, velX, duration, sub-ctr.
-; The last pointer entry (&FF,&FF) doubles as the Seq 0 header.
+; Each entry is: velocityY, velocityX, param1, param2
+; (values like &FD/-3 and &FE/-2 are signed velocity bytes, not special prefixes).
+; &FF,&FF at the start of each sequence is a chain terminator for the
+; previous sequence (or initial guard — spawn code sets index=2 to skip past it).
 
 .move_seq_0                     ; &0B8B — pointed to by move_ptr_table
-    EQUB &FF, &FF               ; Seq 0 header / end-of-ptr-table
-    EQUB &28, &00, &04, &04     ; Down fast
+    EQUB &FF, &FF               ; Chain terminator (BMI kills sprite reading byte 0)
+    EQUB &28, &00, &04, &04     ; velY=&28, velX=&00
     EQUB &00, &00, &20, &04     ; Pause
-    EQUB &F6, &00, &10, &04     ; Up
+    EQUB &F6, &00, &10, &04     ; velY=&F6 (-10)
     EQUB &00, &00, &00, &00     ; Stop
 
 .move_seq_1                     ; &0B9D
-    EQUB &FF, &FF               ; Header
-    EQUB &FE, &00, &20, &00     ; Reverse direction
+    EQUB &FF, &FF               ; Chain terminator
+    EQUB &FE, &00, &20, &00     ; velY=&FE (-2), velX=&00
 
 .move_seq_3                     ; &0BA3
-    EQUB &FF, &FF               ; Header
-    EQUB &FD, &14, &00, &04
-    EQUB &FD, &0C, &00, &04
-    EQUB &FD, &E0, &00, &F8
+    EQUB &FF, &FF               ; Chain terminator
+    EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
+    EQUB &FD, &0C, &00, &04     ; velY=&FD (-3), velX=&0C
+    EQUB &FD, &E0, &00, &F8     ; velY=&FD (-3), velX=&E0
 
 .move_seq_4                     ; &0BB1
-    EQUB &FF, &FF               ; Header
-    EQUB &FD, &14, &00, &04
-    EQUB &FD, &08, &00, &04
-    EQUB &FD, &E4, &00, &F8
+    EQUB &FF, &FF               ; Chain terminator
+    EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
+    EQUB &FD, &08, &00, &04     ; velY=&FD (-3), velX=&08
+    EQUB &FD, &E4, &00, &F8     ; velY=&FD (-3), velX=&E4
 
 .move_seq_2                     ; &0BBF
-    EQUB &FF, &FF               ; Header
-    EQUB &FE, &01, &01, &04
-    EQUB &FE, &FF, &01, &FC
+    EQUB &FF, &FF               ; Chain terminator
+    EQUB &FE, &01, &01, &04     ; velY=&FE (-2), velX=&01
+    EQUB &FE, &FF, &01, &FC     ; velY=&FE (-2), velX=&FF (-1)
 
 .move_seq_5                     ; &0BC9
-    EQUB &FF, &FF               ; Header
-    EQUB &FD, &14, &00, &04
-    EQUB &FD, &10, &00, &04
-    EQUB &FD, &DC, &00, &F8
+    EQUB &FF, &FF               ; Chain terminator
+    EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
+    EQUB &FD, &10, &00, &04     ; velY=&FD (-3), velX=&10
+    EQUB &FD, &DC, &00, &F8     ; velY=&FD (-3), velX=&DC
 
 .move_seq_6                     ; &0BD7
-    EQUB &FF, &FF               ; Header
-    EQUB &FD, &14, &00, &04
-    EQUB &FD, &08, &00, &04
-    EQUB &FD, &E4, &00, &F8
+    EQUB &FF, &FF               ; Chain terminator
+    EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
+    EQUB &FD, &08, &00, &04     ; velY=&FD (-3), velX=&08
+    EQUB &FD, &E4, &00, &F8     ; velY=&FD (-3), velX=&E4
 
 ; === Tile Column Mini-LUT (&0BE5-&0BE8) ===
 .tile_col_lut
@@ -689,7 +698,7 @@ INCLUDE "tables.asm"
     STA tile_gfx_load + 2       ; Patch address high byte
     BNE tile_render             ; Always branches (A=&37)
 
-    ; Fallback path: use pointer from &00/&01
+    ; Alternative entry: caller provides custom tile address in &00/&01
     LDA &00
     STA tile_gfx_load + 1
     LDA &01
@@ -717,7 +726,7 @@ INCLUDE "tables.asm"
     AND #&F8                    ; Align to 8-pixel row boundary
     LSR A : LSR A               ; /4
     CLC
-    ADC #&58                    ; Screen base
+    ADC #&58                    ; Screen display base &5800
     ADC &03
     STA &03                     ; Final screen high byte
 
@@ -745,7 +754,7 @@ INCLUDE "tables.asm"
 .tile_gfx_load
     LDA &3700,X                 ; Read tile graphics (address is patched!)
 .tile_mask
-    AND &0100                   ; AND with mask table (operand patched above)
+    AND &0100                   ; AND with mask table on stack page (&0100-&013F, populated at runtime)
     ORA (&04),Y                 ; OR tile onto screen content
     STA (&04),Y                 ; Write combined result
 
@@ -762,7 +771,7 @@ INCLUDE "tables.asm"
     BEQ tile_inner              ; Always branches
 
 .tile_next_row
-    LDA &02 : ADC #&07 : STA &02  ; Advance to next column
+    LDA &02 : ADC #&07 : STA &02  ; Advance 8 bytes to next tile column (carry set from CPX)
     BCC tile_no_carry
     INC &03
 .tile_no_carry
