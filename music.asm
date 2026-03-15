@@ -69,24 +69,36 @@
 
 ; --- Sound state block (&0D00-&0D7F) ---
 ; This 128-byte block is encrypted on disc but decrypted at runtime
-; by the loader. At runtime it contains live sound/music state data
-; that is patched by the IRQ handler via self-modifying code.
+; by the loader. Four locations within it are used as live mutable
+; state by the IRQ handler:
+;   music_note_reset  (+&09) — patched with &2F silence token on note end
+;   music_ptr_lo      (+&3D) — low byte of music playback pointer (INC'd)
+;   music_ptr_hi      (+&3E) — high byte of music playback pointer (INC'd)
+;   music_env_patch   (+&4C) — patched with &48 on final envelope tick
 .sound_state_block
-    EQUB &35, &D7, &2D, &49, &04, &BC, &E5, &79
-    EQUB &71, &90, &32, &E7, &91, &5D, &9E, &5A
-    EQUB &41, &3A, &96, &48, &5E, &01, &EF, &C7
-    EQUB &91, &61, &E2, &13, &36, &22, &E8, &2F
-    EQUB &46, &70, &D7, &15, &FD, &DF, &EF, &7D
-    EQUB &CE, &33, &08, &C3, &CC, &FF, &B8, &62
-    EQUB &0C, &B4, &A0, &BE, &47, &9F, &10, &54
-    EQUB &9C, &3D, &FC, &23, &EC, &DB, &27, &52
-    EQUB &BC, &28, &AD, &54, &D3, &5B, &DD, &F8
-    EQUB &74, &97, &D3, &A9, &63, &85, &9E, &ED
-    EQUB &58, &7B, &99, &9E, &23, &38, &F9, &58
-    EQUB &EE, &A7, &FE, &BF, &AF, &B0, &81, &35
-    EQUB &4B, &28, &CA, &01, &03, &A6, &61, &22
-    EQUB &B4, &EB, &50, &8B, &6B, &39, &13, &CB
-    EQUB &D4, &29, &1F, &56, &73, &D1, &92, &59
+    EQUB &35, &D7, &2D, &49, &04, &BC, &E5, &79  ; +&00
+    EQUB &71                                       ; +&08
+.music_note_reset                                  ; +&09: patched with &2F on note end
+    EQUB &90, &32, &E7, &91, &5D, &9E, &5A        ; +&09
+    EQUB &41, &3A, &96, &48, &5E, &01, &EF, &C7   ; +&10
+    EQUB &91, &61, &E2, &13, &36, &22, &E8, &2F   ; +&18
+    EQUB &46, &70, &D7, &15, &FD, &DF, &EF, &7D   ; +&20
+    EQUB &CE, &33, &08, &C3, &CC, &FF, &B8, &62   ; +&28
+    EQUB &0C, &B4, &A0, &BE, &47, &9F, &10, &54   ; +&30
+    EQUB &9C, &3D, &FC, &23, &EC                   ; +&38
+.music_ptr_lo                                      ; +&3D: music playback pointer low
+    EQUB &DB
+.music_ptr_hi                                      ; +&3E: music playback pointer high
+    EQUB &27, &52                                  ; +&3F
+    EQUB &BC, &28, &AD, &54, &D3, &5B, &DD, &F8   ; +&40
+    EQUB &74, &97, &D3, &A9                        ; +&48
+.music_env_patch                                   ; +&4C: patched with &48 on envelope tick
+    EQUB &63, &85, &9E, &ED                        ; +&4C
+    EQUB &58, &7B, &99, &9E, &23, &38, &F9, &58   ; +&50
+    EQUB &EE, &A7, &FE, &BF, &AF, &B0, &81, &35   ; +&58
+    EQUB &4B, &28, &CA, &01, &03, &A6, &61, &22   ; +&60
+    EQUB &B4, &EB, &50, &8B, &6B, &39, &13, &CB   ; +&68
+    EQUB &D4, &29, &1F, &56, &73, &D1, &92, &59   ; +&70
     EQUB &A4, &58, &DE, &01, &04, &6A, &65, &65
 
 ; --- Tune 2: Secondary theme (&0D80-&0DFF) ---

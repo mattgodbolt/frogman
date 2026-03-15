@@ -58,7 +58,7 @@ ORG &0600
     BCC delay_loop              ; Sound disabled — skip
 
     LDA #&48                    ; Silence token
-    STA sound_state_block + &4C                   ; Patch silence into live sound state (decrypted at runtime)
+    STA music_env_patch                   ; Patch silence into live sound state (decrypted at runtime)
 
 ; --- VIA Timer 2 delay loop ---
 ; Brief busy-wait: writes to Timer 2 low counter, reads it back.
@@ -85,16 +85,16 @@ ORG &0600
     LDA &FE2B                   ; Read Timer 2 high (pseudo-random seed)
     STA &8000                   ; Write to sideways RAM (purpose unclear — possibly RNG seed or bank signalling)
 
-    INC sound_state_block + &3D                   ; Advance music pointer low (live runtime data)
+    INC music_ptr_lo                   ; Advance music pointer low (live runtime data)
     BNE skip_music_hi
-    INC sound_state_block + &3E                   ; Carry to music pointer high (live runtime data)
+    INC music_ptr_hi                   ; Carry to music pointer high (live runtime data)
 
 .skip_music_hi
     DEC &A6                     ; Decrement note duration
     BNE done_music              ; Note still playing
 
     LDA #&2F                    ; Reset/silence token
-    STA sound_state_block + &09                   ; Patch reset into live sound state (decrypted at runtime)
+    STA music_note_reset                   ; Patch reset into live sound state (decrypted at runtime)
 
 .done_music
     PLA
