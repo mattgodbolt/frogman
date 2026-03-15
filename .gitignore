@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Build output
+*.ssd
+!frogman.ssd
+
+# Editor/IDE
+*.swp
+*~
+.vscode/
+
+# OS
+.DS_Store
