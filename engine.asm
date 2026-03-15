@@ -695,15 +695,9 @@ INCLUDE "tables.asm"
     LDA &01
     STA tile_gfx_load + 2
 
-; === Tile Renderer (&0C02-&0C77) ===
+; === Tile Renderer (&0C02-&0C79) ===
 ; Core tile drawing routine. Reads tile graphics, masks with &0100 table,
 ; overlays onto screen content, and writes back.
-;
-; The renderer has no explicit RTS. On the final iteration, the BNE
-; at the very end (&0C76-&0C77) falls through to &0C78-&0C79.
-; The music data at &0C78 begins with &BE (the BNE branch offset)
-; followed by &60 (RTS), providing the return instruction. This
-; overlap of code and data saves one byte — a classic trick.
 
 .tile_render
     LDA &0F                     ; Tile X coordinate
@@ -776,8 +770,4 @@ INCLUDE "tables.asm"
     LDA &17 : ADC &16 : STA &17   ; Advance width limit
     DEC &18                     ; Decrement row counter
     BNE tile_outer              ; More rows — loop back
-    ; Falls through when row counter reaches zero.
-    ; &0C79 = &60 (RTS) — the RTS lives in the music data region,
-    ; doing double duty as both code and data. We include it here
-    ; explicitly so the engine is self-contained.
     RTS
