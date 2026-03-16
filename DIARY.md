@@ -54,11 +54,30 @@ Launched 5 review agents in parallel, each scrutinizing a major routine against 
 
 Removed all hard-coded address ranges from comments (they rot when code changes). Marked speculative tune names as "purpose unconfirmed". Renamed remaining misleading sprite state variables. Updated all documentation (README, CLAUDE.md, loader.asm) for consistency.
 
+## Entry 8: Bootable Disc Investigation (parked)
+
+Attempted to build a bootable disc image from the disassembly. Built successfully with BeebASM (PUTFILE for data, PUTBASIC for BASIC loader) but the game doesn't start because the **main game loop is missing**.
+
+The ~1KB engine at &0880 contains only subroutines (render_map, update_sprites, set_tone, etc.) — they all end with RTS. Something external must call them in a loop. This orchestration code is created by the Loader's decryption chain and we haven't captured it.
+
+**What we tried:**
+- Patching the running game with JMP-to-self at update_sprites entry — but we can't read registers/SP to find the caller
+- Reading the stack to find return addresses — stack is shared with mask table, can't determine SP
+- Searching for the decryption chain endpoint — each stage's EOR uses memory being decrypted, so patching memory to set breakpoints corrupts the chain
+- IRQ1V at &204/&205 unexpectedly points to &4CA5 (sprite graphics area), not &0600 — the interrupt hookup is more complex than assumed
+
+**What's needed to proceed:**
+- jsbeeb MCP needs breakpoint and register-read support to trace the Loader's decryption chain to its endpoint
+- Once we can see the decrypted Loader's final stage, we'll find the game startup code that sets up IRQ vectors, calls init_game, renders the initial map, and enters the main loop
+- The main loop is likely small (maybe 20-50 bytes) — it just needs to call update_sprites and handle keyboard input in a loop
+
 ## What Remains
 
+- **BLOCKING: Main game loop** — need to trace the Loader decryption to find the orchestration code
 - The mask table at &0100-&013F (stack page) is populated at runtime but we haven't captured or documented its contents
 - The exact CRTC register configuration isn't documented
 - The BASIC loader (Ribbit) reconstruction is a sketch, not byte-accurate
 - Level 2 data hasn't been dumped or compared
 - The relationship between the three tunes and game states is unknown
 - The two "sound data blocks" between tunes contain data whose runtime purpose (beyond the 4 named labels) is unidentified
+- IRQ1V doesn't point to &0600 — need to understand the actual interrupt dispatch mechanism
