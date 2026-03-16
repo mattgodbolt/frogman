@@ -2,8 +2,8 @@
 ; FROGMAN — Game Engine (Annotated Disassembly)
 ; Written by Matthew Godbolt & Richard Talbot-Watkins, February 1993
 ;
-; Contains ALL executable code:
-;   IRQ Handler           (94 bytes)
+; Contains:
+;   Disc I/O NMI Handler  (94 bytes) — FDC data transfer during loading
 ;   Sprite Pointer Table  (21 bytes)
 ;   Game Engine           (1018 bytes)
 ;
@@ -14,102 +14,113 @@
 ; ============================================================================
 
 ; ############################################################################
-; IRQ HANDLER
+; DISC I/O HANDLER (NMI)
 ; ############################################################################
-; Handles hardware interrupts from the System VIA:
-;   - CA1+CA2 (VSYNC-related) both set → music note sequencing
-;   - Other sources → sound envelope timing / delay generation
+; Handles 1770 FDC interrupts during disc loading. The FDC triggers NMI
+; for each byte of data transfer.
 ;
-; Uses self-modifying code to patch values into the music data stream.
+; Hardware registers used:
+;   &FE28 = 1770 FDC Status (read) / Command (write)
+;   &FE2A = 1770 FDC Sector register
+;   &FE2B = 1770 FDC Data register
+;
+; FDC Status bits: 0=Busy, 1=DRQ (data ready), 2=Lost Data,
+;   3=CRC Error, 4=Record Not Found, 5=Head Loaded, 6=Write Protect,
+;   7=Motor On
+;
+; This code is installed by the Loader during the decryption/loading
+; phase. After loading completes it remains in memory but may no
+; longer be called.
 ; ############################################################################
 
 ORG &0600
 
-.irq_handler
+.nmi_disc_handler
     PHA                         ; Save accumulator
 
-    LDA &FE28                   ; Read System VIA interrupt flag register
-    AND #&3F                    ; Mask to relevant bits
-    CMP #&03                    ; CA1+CA2 both set? (CA1 = VSYNC on BBC)
-    BEQ music_handler           ; Yes — handle music
+    LDA &FE28                   ; Read FDC Status register
+    AND #&3F                    ; Mask bits 0-5 (ignore Write Protect + Motor)
+    CMP #&03                    ; Busy + DRQ both set?
+    BEQ fdc_read_byte           ; Yes — FDC has a data byte ready
 
-    AND #&FC                    ; Check non-timer interrupt sources
-    BNE store_irq_status        ; Other source — store and exit
+    AND #&FC                    ; Mask out Busy+DRQ, check error/completion bits
+    BNE fdc_store_status        ; Non-zero = error or completion status
 
-    DEC &A5                     ; Decrement sound envelope counter
-    BNE sound_tick              ; Not zero — process sound envelope
+    DEC &A5                     ; Decrement NMI wait counter
+    BNE fdc_wait_tick           ; Not zero — keep waiting
 
-.store_irq_status
-    STA &A2                     ; Store interrupt status for main loop
+.fdc_store_status
+    STA &A2                     ; Store final FDC status for caller
     PLA                         ; Restore A
-    RTI                         ; Return from interrupt
+    RTI                         ; Return from NMI
 
-; --- Sound envelope tick ---
-; On the final tick (counter=1), if sound is enabled, patches a silence
-; byte into the music data stream at music_env_patch.
+; --- FDC wait/timeout tick ---
+; On the final tick (counter=1), optionally patches a value into
+; the disc loading state area.
 
-.sound_tick
-    LDA &A5                     ; Load envelope counter
-    CMP #&01                    ; Final tick?
-    BNE delay_loop              ; No — skip to delay
+.fdc_wait_tick
+    LDA &A5                     ; Load wait counter
+    CMP #&01                    ; Last tick before timeout?
+    BNE fdc_next_sector         ; No — proceed to next sector
 
-    LDA &A1                     ; Load sound enable flag
-    ROR A                       ; Rotate bit 0 into carry
-    BCC delay_loop              ; Sound disabled — skip
+    LDA &A1                     ; Check enable flag
+    ROR A                       ; Bit 0 to carry
+    BCC fdc_next_sector         ; Not enabled — skip
 
-    LDA #&48                    ; Silence token
-    STA music_env_patch                   ; Patch silence into live sound state (decrypted at runtime)
+    LDA #&48                    ; Patch value
+    STA disc_state_patch        ; Patch into disc loading state
 
-; --- VIA Timer 2 delay loop ---
-; Brief busy-wait: writes to Timer 2 low counter, reads it back.
-; They differ once the counter ticks, creating a short delay.
+; --- Advance to next sector ---
+; Increments sector counter, writes to FDC Sector register, then
+; issues a new FDC command to start the next read operation.
 
-.delay_loop
-    INC &CF                     ; Increment delay counter
-    LDA &CF                     ; Load delay value
-.delay_spin
-    STA &FE2A                   ; Write to Timer 2 low counter
-    CMP &FE2A                   ; Read back — values differ once counter ticks
-    BNE delay_spin              ; Brief busy-wait creating a short delay
+.fdc_next_sector
+    INC &CF                     ; Increment sector counter
+    LDA &CF                     ; Load sector number
+.fdc_sector_spin
+    STA &FE2A                   ; Write to FDC Sector register
+    CMP &FE2A                   ; Read back — busy-wait until register accepts value
+    BNE fdc_sector_spin         ; Spin until written
 
-    LDA &A7                     ; IFR acknowledge mask
-    STA &FE28                   ; Write to IFR to clear flagged interrupts
+    LDA &A7                     ; Load FDC command byte
+    STA &FE28                   ; Write to FDC Command register (start read)
     PLA                         ; Restore A
     RTI
 
-; --- Music note sequencing ---
-; Advances music data pointer and decrements note duration.
-; When a note ends, patches a reset token into the stream.
+; --- FDC data byte transfer ---
+; Read a byte from the FDC Data register and store it to the
+; destination address. Increments the destination pointer and
+; decrements the byte count.
 
-.music_handler
-    LDA &FE2B                   ; Read Timer 2 high (pseudo-random seed)
-    STA &8000                   ; Write to sideways RAM (purpose unclear — possibly RNG seed or bank signalling)
+.fdc_read_byte
+    LDA &FE2B                   ; Read byte from FDC Data register
+    STA &8000                   ; Store to sideways RAM destination
 
-    INC music_ptr_lo                   ; Advance music pointer low (live runtime data)
-    BNE skip_music_hi
-    INC music_ptr_hi                   ; Carry to music pointer high (live runtime data)
+    INC disc_load_ptr_lo        ; Increment load destination pointer low
+    BNE fdc_no_carry
+    INC disc_load_ptr_hi        ; Carry to destination pointer high
 
-.skip_music_hi
-    DEC &A6                     ; Decrement note duration
-    BNE done_music              ; Note still playing
+.fdc_no_carry
+    DEC &A6                     ; Decrement bytes remaining
+    BNE fdc_read_done           ; More bytes to transfer
 
-    LDA #&2F                    ; Reset/silence token
-    STA music_note_reset                   ; Patch reset into live sound state (decrypted at runtime)
+    LDA #&2F                    ; Transfer complete marker
+    STA disc_load_complete      ; Signal completion
 
-.done_music
+.fdc_read_done
     PLA
     RTI
 
-; --- System VIA Timer 2 acknowledge ---
-.sysvia_t2_ack
-    LDA &FE2B                   ; Read System VIA Timer 2 High to acknowledge
+; --- FDC Data acknowledge ---
+.fdc_data_ack
+    LDA &FE2B                   ; Read FDC Data register (clears DRQ)
     PLA
     RTI
 
-; --- Reset Timer 2 high byte ---
-.irq_disable
+; --- FDC Data clear ---
+.fdc_data_clear
     LDA #&00
-    STA &FE2B                   ; Reset Timer 2 high byte to zero
+    STA &FE2B                   ; Write zero to FDC Data register
     PLA
     RTI
 

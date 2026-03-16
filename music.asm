@@ -63,18 +63,18 @@
     EQUB &DD, &07, &4F, &47
     EQUB &B2, &DA
 
-; --- Sound state block ---
+; --- Disc loading state block ---
 ; This 128-byte block is encrypted on disc but decrypted at runtime
 ; by the loader. Four locations within it are used as live mutable
-; state by the IRQ handler:
-;   music_note_reset  — patched with &2F silence token on note end
-;   music_ptr_lo      — low byte of music playback pointer (INC'd)
-;   music_ptr_hi      — high byte of music playback pointer (INC'd)
-;   music_env_patch   — patched with &48 on final envelope tick
-.sound_state_block
+; state by the NMI disc handler at &0600:
+;   disc_load_complete — patched with &2F when transfer completes
+;   disc_load_ptr_lo   — low byte of load destination pointer (INC'd)
+;   disc_load_ptr_hi   — high byte of load destination pointer (INC'd)
+;   disc_state_patch   — patched with &48 on final wait tick
+.disc_state_block
     EQUB &35, &D7, &2D, &49, &04, &BC, &E5, &79
     EQUB &71
-.music_note_reset                                  ; patched with &2F on note end
+.disc_load_complete                                ; patched with &2F on transfer complete
     EQUB &90, &32, &E7, &91, &5D, &9E, &5A
     EQUB &41, &3A, &96, &48, &5E, &01, &EF, &C7
     EQUB &91, &61, &E2, &13, &36, &22, &E8, &2F
@@ -82,13 +82,13 @@
     EQUB &CE, &33, &08, &C3, &CC, &FF, &B8, &62
     EQUB &0C, &B4, &A0, &BE, &47, &9F, &10, &54
     EQUB &9C, &3D, &FC, &23, &EC
-.music_ptr_lo                                      ; music playback pointer low
+.disc_load_ptr_lo                                  ; load destination pointer low
     EQUB &DB
-.music_ptr_hi                                      ; music playback pointer high
+.disc_load_ptr_hi                                  ; load destination pointer high
     EQUB &27, &52
     EQUB &BC, &28, &AD, &54, &D3, &5B, &DD, &F8
     EQUB &74, &97, &D3, &A9
-.music_env_patch                                   ; patched with &48 on envelope tick
+.disc_state_patch                                  ; patched with &48 on wait timeout
     EQUB &63, &85, &9E, &ED
     EQUB &58, &7B, &99, &9E, &23, &38, &F9, &58
     EQUB &EE, &A7, &FE, &BF, &AF, &B0, &81, &35
