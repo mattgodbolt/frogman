@@ -71,13 +71,52 @@ The ~1KB engine at &0880 contains only subroutines (render_map, update_sprites, 
 - Once we can see the decrypted Loader's final stage, we'll find the game startup code that sets up IRQ vectors, calls init_game, renders the initial map, and enters the main loop
 - The main loop is likely small (maybe 20-50 bytes) — it just needs to call update_sprites and handle keyboard input in a loop
 
+## Entry 9: Tracing the Loader Decryption Chain
+
+Added breakpoint support to the jsbeeb MCP (set_breakpoint, clear_breakpoint, read_registers, disassemble). Fixed two bugs: the `!first` skip in executeInternal could miss breakpoints, and type() interleaving runFor calls interfered with breakpoint halt/resume. Rewrote type() as a debugInstruction hook that coexists with breakpoints.
+
+**The decryption chain structure:**
+
+The Loader (&2800-&47FF, 8KB) contains ~410 stages of EOR loops, each 28 bytes of code decrypting the next 256 bytes. The code was ORGed at the end of the Loader and stages were prepended backwards until the space was filled. Each stage seeds the User VIA Timer 1 (&FE64/&FE65) with a different value and uses it as a rolling XOR key, making the decryption timing-dependent.
+
+After the EOR chain completes, the decrypted code at &4700 reveals an easter egg:
+
+> "So you've hacked through the 410(ish) little Eor Loops Of Brain Death. Now combat the Evil Timer Eor System Of Doom. (heh heh heh). Honestly, can't you find something better to do?"
+
+The decrypted &4700 code then:
+1. `*LOAD Screen` and decrypts &1F00-&21FF
+2. &1F70: `*Load Credits 2400` and jumps to &2000
+3. &2000: Timer-based EOR using Credits data as key, decrypts &2100
+4. &2100: `*Load Data`, XORs &1100-&12FF using Credits data, jumps to &1100
+5. &1100: MODE 2, CRTC setup, `*L.Data2` (title screen), RLE decompress to screen, wait for SPACE, `*L.Gcode`, decrypt sprite graphics (nibble swap + EOR), enable interrupts, `JMP &48A0`
+
+## Entry 10: The Hidden Game Code
+
+**The "sprite graphics" at &4800-&57FF is actually ~4KB of executable game code!**
+
+What we labelled as sprite pixel data is in fact the game's main loop, IRQ handler, collision detection, keyboard handling, level loading, and all the orchestration code that calls the engine subroutines. The Gcode file is encrypted on disc and decrypted at &1100 using nibble-swap + double EOR (&4D, &47 — "MG"!).
+
+**Key discoveries:**
+
+- **IRQ handler at &4CA5** (not &0600): `LDA &FC : PHA : TXA : PHA : TYA : PHA : SEI : LDA &FE4D` — proper BBC IRQ1V protocol. Reads System VIA IFR at &FE4D (correct!), checks for CA1 (VSYNC), calls `JSR &088F` (update_sprites). This is the real interrupt handler.
+
+- **IRQ1V setup at &497C**: `LDA #&A5 : STA &0204 : LDA #&4C : STA &0205` — sets IRQ1V to &4CA5, confirming the value we saw earlier.
+
+- **Game main loop at &48A0+**: Loads level-specific files (`Level*G`, `FastI/O`, `Level*T`, `Level*S`, `Tabs`), patches filenames with the level number, copies tables from &5800 to &0700, clears screen memory, sets up sprites, renders initial map via `JSR &0886`/`JSR &0889`, then enters the game loop with keyboard scanning and collision detection.
+
+- **&0600 is the NMI disc handler** (confirmed): used only during loading, not during gameplay.
+
+**The total executable code is much larger than 1.1KB:**
+- Engine subroutines: &0880-&0C79 (1018 bytes)
+- Game code (Gcode): &4800-&57FF (~4096 bytes, encrypted on disc)
+- Setup code: &1100-&12FF (512 bytes, runs once)
+- NMI disc handler: &0600-&065D (94 bytes, loading only)
+
 ## What Remains
 
-- **BLOCKING: Main game loop** — need to trace the Loader decryption to find the orchestration code
-- The mask table at &0100-&013F (stack page) is populated at runtime but we haven't captured or documented its contents
-- The exact CRTC register configuration isn't documented
-- The BASIC loader (Ribbit) reconstruction is a sketch, not byte-accurate
-- Level 2 data hasn't been dumped or compared
-- The relationship between the three tunes and game states is unknown
-- The two "sound data blocks" between tunes contain data whose runtime purpose (beyond the 4 named labels) is unidentified
-- IRQ1V doesn't point to &0600 — need to understand the actual interrupt dispatch mechanism
+- Dump and disassemble the full &4800-&57FF game code (freshly decrypted, before any runtime state changes)
+- The mask table at &0100-&013F (stack page) — we now know it's copied from &5800 during init at &495F
+- Level 2 data hasn't been dumped
+- The relationship between the three tunes and game states
+- Full annotation of the Gcode game logic (collision, keyboard, level transitions)
+- Update encryption_appendix.asm with the full decryption chain structure
