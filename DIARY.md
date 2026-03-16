@@ -112,11 +112,31 @@ What we labelled as sprite pixel data is in fact the game's main loop, IRQ handl
 - Setup code: &1100-&12FF (512 bytes, runs once)
 - NMI disc handler: &0600-&065D (94 bytes, loading only)
 
+## Entry 11: Disc Build Restructured
+
+Restructured the disc build to use original disc files from `extracted/` directly — the game code at &48A0 loads Level1G, Level1S, Level1T, Tabs, etc. by name via `*LOAD`, so these just need to be on the disc. Removed the stale memory dump files from `data/` that contained runtime state contamination.
+
+The only pre-decrypted file needed is `data/gcode_decrypted.bin` (&4800-&57FF), since our boot loader bypasses the &1100 setup code that normally decrypts Gcode after loading.
+
+**File loading flow discovered:**
+- `*Load FastI/O 5800` — engine loaded to &5800 (NOT &0700!)
+- Init at &495F copies &5800-&5FFF → &0700-&0EFF and clears screen
+- `*Load Level?T 5D80` — level tile table at &5D80, overlaps the &5800 copy range so ends up at &0D80-&0EFF after copying (this is how the music/data region gets populated!)
+- `*Load Level?G` — tile graphics, loads at default address from file header
+- `*Load Level?S 300` — sprite defs to &0300
+- `*Load Tabs 100` — mask table to &0100 (stack page)
+- Level1G is unencrypted on disc; Level1S and Tabs have some mismatches vs memory (possibly runtime modifications or stack overwrites for Tabs)
+
+**Boot loader:** MODE 2, load Gcode to &4800, load FastI/O to &5800, set level number at &0430, CALL &48A0.
+
+Disc builds cleanly. Not yet tested in emulator.
+
 ## What Remains
 
-- Dump and disassemble the full &4800-&57FF game code (freshly decrypted, before any runtime state changes)
-- The mask table at &0100-&013F (stack page) — we now know it's copied from &5800 during init at &495F
-- Level 2 data hasn't been dumped
+- **Boot test** the rebuilt disc in jsbeeb
+- Disassemble and annotate the &4800-&57FF game code (main loop, IRQ handler, collision)
+- Full annotation of the setup code at &1100-&12FF
 - The relationship between the three tunes and game states
-- Full annotation of the Gcode game logic (collision, keyboard, level transitions)
+- Level 2 support (load Level2* files)
 - Update encryption_appendix.asm with the full decryption chain structure
+- Reconcile the engine assembly comments with the new understanding (game code calls engine via jump table, IRQ at &4CA5 not &0600)
