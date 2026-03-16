@@ -3,32 +3,30 @@
 ; Written by Matthew Godbolt & Richard Talbot-Watkins, February 1993
 ;
 ; Main build file for BeebASM reassembly.
+; Assembles the engine code and builds a bootable disc image with all
+; data files at their correct runtime load addresses.
+;
+; The original disc uses encrypted files decrypted by a 55-stage Loader.
+; This build uses pre-decrypted data dumped from the running game,
+; with a simple BASIC loader replacing the encryption chain.
 ; ============================================================================
 
-; Assembly order follows memory layout:
-;   &0600-&065D  IRQ handler          (engine.asm, first section)
-;   &06BA-&06C8  Sprite pointer table (engine.asm, second section)
-;   &0700-&087F  Lookup tables        (tables.asm)
-;   &0880-&0C79  Game engine          (engine.asm, third section)
-;   &0C7A-&0EFF  Music data           (music.asm)
-;
-; BeebASM allows backward ORG as long as regions don't overlap,
-; so the IRQ handler at &0600 is assembled first, then tables at
-; &0700 fit in the gap before the engine at &0880.
-
+; --- Assemble all code and data ---
 INCLUDE "engine.asm"
 INCLUDE "music.asm"
 
-; --- Data files ---
-; Binary data is placed in the disk image using PUTFILE.
-; The BASIC loader (Ribbit) or machine code Loader loads these
-; at runtime to their correct memory addresses.
-;
-SAVE "Engine", &0600, &0F00, &09BF
+; --- Save files to disc using original names where applicable ---
+SAVE "FastI/O", &0600, &0F00, init_game
+PUTFILE "data/sprite_defs.bin",  "Level1S", &0300, &0300
+PUTFILE "data/level_map.bin",    "Level1M", &0F00, &0F00
+PUTFILE "data/level_map2.bin",   "MapGap",  &2300, &2300
+PUTFILE "data/level_map3.bin",   "MapPt2",  &2800, &2800
+PUTFILE "data/level1_gfx.bin",   "Level1G", &3700, &3700
+PUTFILE "data/sprite_gfx.bin",   "Gcode",   &4800, &4800
+PUTFILE "data/status_bar.bin",   "Tbar",    &7800, &7800
 
-; Uncomment the following for a complete disk image build:
-;
-; PUTFILE "extracted/decrypted/tile_graphics_partial.bin", "Level1G", &3700, &3700
-; PUTFILE "extracted/decrypted/sprite_graphics.bin", "Gcode", &4800, &4800
-; PUTFILE "extracted/decrypted/status_bar.bin", "Tbar", &7800, &7800
-; PUTFILE "extracted/decrypted/level_map_full.bin", "Level1M", &0F00, &0F00
+; --- Boot sequence ---
+; BASIC loader that loads all files and starts the game.
+; !Boot text file chains the BASIC program (mimics original boot pattern).
+PUTBASIC "boot.bas", "Ribbit"
+PUTTEXT "bootcmd.txt", "!Boot", 0
