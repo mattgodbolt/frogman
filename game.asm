@@ -1859,49 +1859,23 @@ ORG &4800
     STA &08,X
     INC &22
     RTS
-.str_special_msg
-    BIT &25
-    ORA &2018,Y
-    ASL &251B
-    EQUB &0C
-    CLC
-    EQUB &17
-    ORA &181B,X
-    ORA &25,X
-    ORA &1B0E,X
-    ASL &12,X
-    EQUB &17
-    ASL A
-    ORA &25,X
-    BIT &FF
-.str_continue
-    BIT &25
-    ASL A
-    EQUB &0C
-    EQUB &0C
-    ASL &1C1C
-    AND &0D
-    ASL &1217
-    ASL &250D
-    BIT &FF
-.str_well_done
-    BIT &25
-    ORA &18,X
-    EQUB &10, &10    ; BPL &55D5
-    ASL &250D
-    CLC
-    EQUB &17
-    AND &FF
-    AND &19
-    CLC
-    JSR &1B0E
-    AND &0D
-    ASL &0C0A
-    ORA &1F12,X
-    ASL A
-    ORA &0D0E,X
-    AND &24
-    EQUB &FF
+; --- Display strings (tile font: A=&0A..Z=&23, space=&25, *=&24, &FF=end) ---
+.str_special_msg                ; "* POWER CONTROL TERMINAL *"
+    EQUB &24, &25, &19, &18, &20, &0E, &1B, &25
+    EQUB &0C, &18, &17, &1D, &1B, &18, &15, &25
+    EQUB &1D, &0E, &1B, &16, &12, &17, &0A, &15
+    EQUB &25, &24, &FF
+.str_continue                   ; "* ACCESS DENIED *"
+    EQUB &24, &25, &0A, &0C, &0C, &0E, &1C, &1C
+    EQUB &25, &0D, &0E, &17, &12, &0E, &0D, &25
+    EQUB &24, &FF
+.str_well_done                  ; "* LOGGED ON "
+    EQUB &24, &25, &15, &18, &10, &10, &0E, &0D
+    EQUB &25, &18, &17, &25, &FF
+.str_power_off                  ; " POWER DEACTIVATED *"
+    EQUB &25, &19, &18, &20, &0E, &1B, &25, &0D
+    EQUB &0E, &0A, &0C, &1D, &12, &1F, &0A, &1D
+    EQUB &0E, &0D, &25, &24, &FF
 .handle_special_tile
     PHA
     LDA &21

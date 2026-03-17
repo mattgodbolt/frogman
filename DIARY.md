@@ -141,11 +141,35 @@ The game code at &48A0 then loads Level1G, FastI/O (to &5800), Level1T (to &5D80
 
 **Key discovery:** the `*DISC` command at &564F suggests the game was designed to work with both DFS and non-DFS filing systems. The original Loader may have switched filing systems during loading.
 
+## Entry 13: Game Code Fully Disassembled and Labelled
+
+Converted game.asm from pure EQUB to proper 6502 instructions with symbolic labels. The mechanical disassembly was done by a Python script that correctly identifies code vs data regions (OSCLI strings, lookup tables). A subagent then replaced all 138 hard-coded absolute addresses with labels.
+
+**Current state:**
+- 260 labels with descriptive names
+- 0 hard-coded internal addresses
+- 30 LO()/HI() usages for OSCLI string pointers
+- OS entry points and hardware registers as named constants
+- OSCLI strings converted from EQUB to EQUS with readable text
+- Level number placeholders have named labels (oscli_level_g_num etc.)
+- TILESTR macro defined for the custom tile font (A=&0A..Z=&23)
+- Tile font display strings still need converting from wrongly-disassembled instructions to EQUB with TILESTR macro
+
+**Key routines identified:**
+- IRQ handler: VSYNC-driven, palette colour cycling, calls update_sprites
+- set_palette: self-modifying Video ULA register write
+- game_init: copies engine &5800→&0700, sets IRQ1V, VIA config
+- main_loop: keyboard scanning → tile collision → movement dispatch
+- Movement handlers: move_down, move_right, move_up_check etc.
+- Tile operations: get_tile_at_pos, set_tile_at_pos, check_tile_solid
+- Item system: collect_item, drop_item, clear_tile_pickup
+- Display: draw_digit, draw_string (game_routines_5), draw_status
+
 ## What Remains
 
-- Disassemble and annotate the &4800-&57FF game code (main loop, IRQ handler, collision)
+- Convert tile font display strings from wrongly-disassembled instructions to EQUB/TILESTR
+- Remaining data tables still mixed with code (some EQUB in code sections)
+- Engine.asm needs same treatment: OS constants, hardware register names
 - Full annotation of the setup code at &1100-&12FF
-- Audit all labels and variables in engine.asm against actual runtime behaviour
+- Rename remaining l_XXXX labels to descriptive names where purpose is clear
 - The relationship between the three tunes and game states
-- Update encryption_appendix.asm with the full decryption chain structure
-- Reconcile the engine assembly comments with the new understanding
