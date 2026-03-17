@@ -115,84 +115,94 @@ ORG &4800
     DEX
     BNE l_495F
     LDX #&FF
-    TXS
-    LDA #&A5
-    STA &0204
-    LDA #&4C
-    STA &0205
+    TXS                         ; Reset stack pointer
+    LDA #LO(irq_handler)
+    STA &0204                   ; IRQ1V low = &A5
+    LDA #HI(irq_handler)
+    STA &0205                   ; IRQ1V high = &4C
+
+    ; --- Zero page initialisation ---
     LDA #&00
-    STA &0C
-    STA &0E
-    STA &20
-    STA &22
-    STA &23
+    STA &0C                     ; Colour cycle phase
+    STA &0E                     ; Frame sub-counter
+    STA &20                     ; Game state flags
+    STA &22                     ; Scroll lock
+    STA &23                     ; Sprite update inhibit (0 = enabled)
     LDA #&07
-    STA &25
+    STA &25                     ; Active palette entries for cycling
     LDA #&08
-    STA &0D
+    STA &0D                     ; First palette entry to animate
+
+    ; --- System VIA setup ---
     LDA #&FF
-    STA &FE42
+    STA &FE42                   ; DDRB = all outputs
     LDA #&03
-    STA &FE40
+    STA &FE40                   ; ORB = &03
     LDA #&0E
-    STA &FE40
+    STA &FE40                   ; ORB = &0E
     LDA #&0F
-    STA &FE40
+    STA &FE40                   ; ORB = &0F
     LDA #&7F
-    STA &FE43
-    STA &FE4E
+    STA &FE43                   ; DDRA = bit 7 input, rest output
+    STA &FE4E                   ; IER: disable all interrupts
     LDA #&82
-    STA &FE4E
+    STA &FE4E                   ; IER: enable CA1 (VSYNC) interrupt
+
+    ; --- Initial palette ---
     LDA #&0E
     LDX #&00
-    JSR &4D08
+    JSR set_palette             ; Set palette entry 0 to colour 14
     LDA #&0F
     LDX #&03
-    JSR &4D08
-    JSR &576A
-    CLI
+    JSR set_palette             ; Set palette entry 3 to colour 15
+    JSR clear_sprite_state      ; Clear all sprite animation state
+    CLI                         ; Enable interrupts — game starts running
 
-; --- Game loop setup — init sprites, render map ---
+; === Game Loop Setup ===
+; Called at the start of each life / level.
+; Initialises sprites, loads the level map, renders the initial screen,
+; draws the status bar and title text, then waits for SPACE to start.
+
 .game_loop_start
-    LDA &23
+    LDA &23                     ; Save sprite update inhibit state
     PHA
-    JSR &0892    ; engine: init_game
+    JSR &0892                   ; engine: init_game (VIA config)
     LDA #&FF
-    STA &23
+    STA &23                     ; Inhibit sprite updates during setup
     LDA #&00
-    STA &08
-    STA &09
+    STA &08                     ; Clear score low
+    STA &09                     ; Clear score high
     LDA #&09
-    STA &24
-    JSR &550D
-    JSR &564F
-    JSR &525F
+    STA &24                     ; Lives = 9
+    JSR &550D                   ; Initialise score display
+    JSR &564F                   ; Load level map from disc
+    JSR &525F                   ; Draw status bar
     LDA #&00
-    STA &06
+    STA &06                     ; Map source low = &0300
     LDA #&03
-    STA &07
-    JSR &0889    ; engine: render_map
+    STA &07                     ; Map source high
+    JSR &0889                   ; engine: render_map
     PLA
-    STA &23
-    JSR &5553
-    LDA #&02
+    STA &23                     ; Restore sprite update inhibit
+    JSR &5553                   ; Draw "FROGMAN BY MG RTW" title
+    LDA #&02                    ; Row 2
     STA &1D
     LDA #&00
-    STA &0B
+    STA &0B                     ; Tile Y = 0
     LDA #&08
-    STA &0A
-    LDX #&56
-    LDY #&54
-    JSR &5488
-    LDA #&07
+    STA &0A                     ; Tile X = 8
+    LDX #&56                    ; String pointer low
+    LDY #&54                    ; String pointer high (&5456)
+    JSR &5488                   ; Draw string: "FROGMAN BY MG RTW"
+    LDA #&07                    ; Row 7
     STA &1D
     LDA #&01
-    STA &0B
+    STA &0B                     ; Tile Y = 1
     LDA #&08
-    STA &0A
-    LDX #&6F
-    LDY #&54
-    JSR &5488
+    STA &0A                     ; Tile X = 8
+    LDX #&6F                    ; String pointer low
+    LDY #&54                    ; String pointer high (&546F)
+    JSR &5488                   ; Draw string: "PRESS SPACE TO START"
     LDA #&62
 .l_4A23
     JSR &4E64
@@ -560,76 +570,103 @@ ORG &4800
     EQUB &01, &40, &02, &5A, &06, &14, &07, &1D
     EQUB &0A, &20, &0C, &0B, &0D, &00
 
-; --- VSYNC IRQ handler — calls update_sprites, palette cycling ---
+; === VSYNC IRQ Handler ===
+; Called via IRQ1V on every vertical sync (~50Hz).
+; Handles: sprite updates, palette colour cycling, VSYNC flag.
+;
+; Zero page usage:
+;   &0C = colour cycle phase (0-7, advances every 8 frames)
+;   &0D = palette entry being animated (cycles 8-11)
+;   &0E = frame sub-counter (incremented each VSYNC)
+;   &1A = VSYNC flag (set to &FF each frame, polled by game loop)
+;   &23 = sprite update inhibit (non-zero = skip update_sprites)
+;   &25 = number of active palette entries for cycling
+
 .irq_handler
-    LDA &FC
-    PHA
-    TXA
-    PHA
-    TYA
-    PHA
-    SEI
-    LDA &FE4D
-    AND #&02
-    BEQ l_4D00
-    STA &FE4D
-    LDA &23
-    BNE l_4CBE
-    JSR &088F    ; engine: update_sprites
-.l_4CBE
+    LDA &FC                     ; Restore A from MOS save location
+    PHA                         ; Save A
+    TXA : PHA                   ; Save X
+    TYA : PHA                   ; Save Y
+    SEI                         ; Disable interrupts during handler
+
+    LDA &FE4D                   ; Read System VIA IFR
+    AND #&02                    ; Check CA1 (VSYNC) flag
+    BEQ irq_exit                ; Not VSYNC — exit
+
+    STA &FE4D                   ; Acknowledge VSYNC interrupt
+
+    ; --- Update sprites (if not inhibited) ---
+    LDA &23                     ; Sprite update inhibit flag
+    BNE irq_skip_sprites        ; Non-zero = skip
+    JSR &088F                   ; engine: update_sprites
+
+.irq_skip_sprites
     LDA #&FF
-    STA &1A
-    INC &0E
+    STA &1A                     ; Set VSYNC flag for game loop
+
+    ; --- Palette colour cycling ---
+    ; Every 8 frames, advance the colour cycle phase.
+    ; On each phase, reprogram one palette entry via the Video ULA.
+    INC &0E                     ; Increment frame sub-counter
     LDA &0E
-    AND #&08
-    BEQ l_4CE2
+    AND #&08                    ; Every 8 frames?
+    BEQ irq_anim_bg             ; No — check background animation
+
     LDA #&00
-    STA &0E
-    INC &0C
+    STA &0E                     ; Reset sub-counter
+    INC &0C                     ; Advance colour cycle phase
     LDA &0C
-    AND #&07
+    AND #&07                    ; Wrap to 0-7
     STA &0C
-    TAX
-    LDA #&0C
-    CPX &25
-    BCC l_4CDF
-    LDX #&00
-.l_4CDF
-    JSR &4D08
-.l_4CE2
+    TAX                         ; X = colour value
+    LDA #&0C                    ; Palette entry 12 (logical colour 12)
+    CPX &25                     ; Past the active range?
+    BCC irq_set_palette         ; No — set it
+    LDX #&00                    ; Yes — use colour 0
+
+.irq_set_palette
+    JSR set_palette             ; Write palette register
+
+.irq_anim_bg
+    ; Background palette animation — runs every 2 frames
     LDA &0E
-    AND #&02
-    BEQ l_4D00
+    AND #&02                    ; Every 2 frames?
+    BEQ irq_exit                ; No — done
+
+    LDA &0D                     ; Current palette entry (8-11)
+    LDX #&00                    ; Colour value 0 (black)
+    JSR set_palette             ; Set entry to black (fade out)
+    INC &0D                     ; Next palette entry
     LDA &0D
-    LDX #&00
-    JSR &4D08
-    INC &0D
-    LDA &0D
-    CMP #&0C
-    BNE l_4CFB
-    LDA #&08
+    CMP #&0C                    ; Past entry 11?
+    BNE irq_bg_set
+    LDA #&08                    ; Wrap back to entry 8
     STA &0D
-.l_4CFB
-    LDX &25
-    JSR &4D08
-.l_4D00
-    PLA
-    TAY
-    PLA
-    TAX
-    PLA
-    STA &FC
+
+.irq_bg_set
+    LDX &25                     ; Active colour count
+    JSR set_palette             ; Set new entry to active colour
+
+.irq_exit
+    PLA : TAY                   ; Restore Y
+    PLA : TAX                   ; Restore X
+    PLA : STA &FC               ; Restore A to MOS save location
     RTI
-.l_4D08
-    ASL A
-    ASL A
-    ASL A
-    ASL A
-    STA &4D13
+
+; === Set Palette Register ===
+; Writes a colour value to the Video ULA palette register (&FE21).
+; A = logical colour (0-15), X = physical colour (0-7).
+; The ULA register format: upper nibble = logical colour shifted,
+; lower nibble = physical colour EOR 7.
+
+.set_palette
+    ASL A : ASL A : ASL A : ASL A  ; Logical colour → upper nibble
+    STA set_palette_ora + 1     ; Self-modify: patch ORA operand
     TXA
-    EOR #&07
-    ORA #&00
-    STA &FE21
+    EOR #&07                    ; Invert physical colour bits
+.set_palette_ora
+    ORA #&00                    ; OR with logical colour (patched)
+    STA &FE21                   ; Write to Video ULA palette register
     RTS
 
 ; --- Movement, collision, scrolling helpers ---
@@ -1946,10 +1983,14 @@ ORG &4800
     CLI
     RTS
 
-; --- swap_0600_0d00, clear_sprite_state, silence ---
-.utility_routines
+; === Swap &0600 and &0D00 ===
+; Swaps 256 bytes between the NMI handler area (&0600) and the
+; music/data block (&0D00). Called during init to place the right
+; data in each location.
+
+.swap_0600_0d00
     LDX #&00
-.l_5758
+.swap_loop
     LDA &0D00,X
     TAY
     LDA &0600,X
@@ -1957,25 +1998,36 @@ ORG &4800
     TYA
     STA &0600,X
     INX
-    BNE l_5758
+    BNE swap_loop
     RTS
+
+; === Clear Sprite State ===
+; Zeros the animation timer (&78-&7B) and animation index (&8C-&8F)
+; for all 4 sprite slots.
+
+.clear_sprite_state
     LDA #&00
     TAX
-.l_576D
-    STA &78,X
-    STA &8C,X
+.clear_sprite_loop
+    STA &78,X                   ; Animation timer
+    STA &8C,X                   ; Animation index
     INX
     CPX #&04
-    BNE l_576D
+    BNE clear_sprite_loop
     RTS
+
+; === Silence All Sound ===
+; Sets palette entry 1 to black and silences the sound chip.
+
+.silence_all
     LDA #&00
     LDX #&01
-    JSR &4D08
+    JSR set_palette
     LDX #&0A
-    JSR &53F2
+    JSR &53F2                   ; TODO: identify this routine
     LDA #&00
     TAX
-    JMP &4D08
+    JMP set_palette
 
 ; --- Data tables at end of Gcode ---
     EQUB &F9, &89, &3A, &D7, &BC, &DB, &02, &C1
