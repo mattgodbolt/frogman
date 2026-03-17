@@ -65,31 +65,22 @@
 
 ; --- Disc loading state block ---
 ; This 128-byte block is encrypted on disc but decrypted at runtime
-; by the loader. Four locations within it are used as live mutable
-; state by the NMI disc handler at &0600:
-;   disc_load_complete — patched with &2F when transfer completes
-;   disc_load_ptr_lo   — low byte of load destination pointer (INC'd)
-;   disc_load_ptr_hi   — high byte of load destination pointer (INC'd)
-;   disc_state_patch   — patched with &48 on final wait tick
-.disc_state_block
+; by the Loader. Its runtime purpose is unclear — no game code
+; references into it have been identified. The NMI disc handler
+; at &0600 (not part of this build) used four locations within it
+; during disc loading, but that code is only active during the
+; Loader's decryption phase.
+.data_block_1
     EQUB &35, &D7, &2D, &49, &04, &BC, &E5, &79
-    EQUB &71
-.disc_load_complete                                ; patched with &2F on transfer complete
-    EQUB &90, &32, &E7, &91, &5D, &9E, &5A
+    EQUB &71, &90, &32, &E7, &91, &5D, &9E, &5A
     EQUB &41, &3A, &96, &48, &5E, &01, &EF, &C7
     EQUB &91, &61, &E2, &13, &36, &22, &E8, &2F
     EQUB &46, &70, &D7, &15, &FD, &DF, &EF, &7D
     EQUB &CE, &33, &08, &C3, &CC, &FF, &B8, &62
     EQUB &0C, &B4, &A0, &BE, &47, &9F, &10, &54
-    EQUB &9C, &3D, &FC, &23, &EC
-.disc_load_ptr_lo                                  ; load destination pointer low
-    EQUB &DB
-.disc_load_ptr_hi                                  ; load destination pointer high
-    EQUB &27, &52
+    EQUB &9C, &3D, &FC, &23, &EC, &DB, &27, &52
     EQUB &BC, &28, &AD, &54, &D3, &5B, &DD, &F8
-    EQUB &74, &97, &D3, &A9
-.disc_state_patch                                  ; patched with &48 on wait timeout
-    EQUB &63, &85, &9E, &ED
+    EQUB &74, &97, &D3, &A9, &63, &85, &9E, &ED
     EQUB &58, &7B, &99, &9E, &23, &38, &F9, &58
     EQUB &EE, &A7, &FE, &BF, &AF, &B0, &81, &35
     EQUB &4B, &28, &CA, &01, &03, &A6, &61, &22

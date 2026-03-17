@@ -19,11 +19,11 @@ INCLUDE "music.asm"
 ; The game does *Load FastI/O 5800, then init copies &5800→&0700.
 SAVE "FastI/O", &0700, &0F00, &0700
 
-; --- Decrypted game code ---
+; --- Game code ---
 ; Main game loop, IRQ handler, collision, keyboard, level loading.
-; On the original disc this is encrypted; we use the pre-decrypted
-; binary since our boot loader bypasses the decryption at &1100.
-PUTFILE "data/gcode_decrypted.bin", "Gcode", &4800, &4800
+; On the original disc this is encrypted as "Gcode".
+INCLUDE "game.asm"
+SAVE "Gcode", &4800, &5800, &4800
 
 ; --- Original disc files (used directly by game code at &48A0) ---
 ; These are loaded by *LOAD commands in the game code.
