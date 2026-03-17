@@ -131,12 +131,21 @@ The only pre-decrypted file needed is `data/gcode_decrypted.bin` (&4800-&57FF), 
 
 Disc builds cleanly. Not yet tested in emulator.
 
+## Entry 12: Bootable Disc Achieved
+
+The rebuilt disc boots and plays! The missing piece was `Level1M` — the game code at &564F does `*DISC` then `*Load Level1M 5800` to load the level map. Once that file was added to the disc, everything works.
+
+**Boot sequence:** `!Boot` → `*BASIC` → `CHAIN "Ribbit"` → MODE 2, `*LOAD Gcode` (pre-decrypted to &4800), `*LOAD FastI/O 5800`, set level number at &0430, `CALL &48A0`.
+
+The game code at &48A0 then loads Level1G, FastI/O (to &5800), Level1T (to &5D80), Level1S (to &0300), and Tabs (to &0100). The init at &495F copies &5800-&5FFF → &0700-&0EFF (placing the engine at its runtime address) and clears screen memory. At &564F it does `*DISC` and loads Level1M (to &5800, then relocated). IRQ1V is set to &4CA5, interrupts enabled, game loop runs.
+
+**Key discovery:** the `*DISC` command at &564F suggests the game was designed to work with both DFS and non-DFS filing systems. The original Loader may have switched filing systems during loading.
+
 ## What Remains
 
-- **Boot test** the rebuilt disc in jsbeeb
 - Disassemble and annotate the &4800-&57FF game code (main loop, IRQ handler, collision)
 - Full annotation of the setup code at &1100-&12FF
+- Audit all labels and variables in engine.asm against actual runtime behaviour
 - The relationship between the three tunes and game states
-- Level 2 support (load Level2* files)
 - Update encryption_appendix.asm with the full decryption chain structure
-- Reconcile the engine assembly comments with the new understanding (game code calls engine via jump table, IRQ at &4CA5 not &0600)
+- Reconcile the engine assembly comments with the new understanding
