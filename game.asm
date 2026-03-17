@@ -217,7 +217,7 @@ ORG &4800
     JSR game_routines_5                   ; Draw string: "PRESS SPACE TO START"
     LDA #&62
 .l_4A23
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BPL l_4A23
 .wait_for_space_done
     LDA #&14
@@ -241,10 +241,10 @@ ORG &4800
 .main_loop
     JSR &0BE9    ; engine: tile_addr_setup
     LDA #&70
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BPL l_4A5C
 .l_4A54
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BMI l_4A54
     JMP game_state_handlers
 .l_4A5C
@@ -345,17 +345,17 @@ ORG &4800
     JSR drop_item
 .l_4B05
     LDA #&42
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BPL l_4B0F
     JMP move_down
 .l_4B0F
     LDA #&61
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BPL l_4B19
     JMP move_right
 .l_4B19
     LDA #&48
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BPL l_4B23
     JMP move_up_check
 .l_4B23
@@ -363,28 +363,28 @@ ORG &4800
     CMP #&03
     BEQ l_4B51
     LDA #&20
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BPL l_4B3D
 .l_4B30
     JSR l_4D1A
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BMI l_4B30
     LDX #&00
     JMP scroll_routines
 .l_4B3D
     LDA #&71
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BPL l_4B51
 .l_4B44
     JSR l_4D1A
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BMI l_4B44
     LDX #&01
     JMP scroll_routines
 .l_4B51
     JSR l_4D1A
     LDA #&65
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BPL l_4B6B
     JSR &0892    ; engine: init_game
     LDA &23
@@ -392,7 +392,7 @@ ORG &4800
     STA &23
 .l_4B64
     LDA #&65
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BMI l_4B64
 .l_4B6B
     JMP main_loop
@@ -793,7 +793,7 @@ ORG &4800
     JSR check_tile_solid
     BEQ l_4E0F
     LDA #&68
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BMI l_4E0F
     INC &11
     LDA &11
@@ -873,7 +873,9 @@ ORG &4800
 ; --- Collision/step tables (data) ---
     EQUB &FD, &FE, &FF, &00, &00, &03, &02, &01
 .scroll_step_table_4
-    EQUB &FE, &FF, &01, &02, &8D, &4F, &FE, &2C
+    EQUB &FE, &FF, &01, &02
+.read_key
+    EQUB &8D, &4F, &FE, &2C
 
 ; --- More game logic — movement, collision response ---
 .game_routines_3
@@ -912,7 +914,7 @@ ORG &4800
     JSR check_tile_solid
     BEQ l_4EFE
     LDA #&68
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BMI l_4EFE
     DEC &11
     BEQ l_4EB9
@@ -1315,7 +1317,7 @@ ORG &4800
     LDX #&32
     JSR l_53F2
     LDA #&00
-    JSR scroll_step_table_4 + 4
+    JSR read_key
     BPL l_51B7
     LDA #&01
     STA &24
