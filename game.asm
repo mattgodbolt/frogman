@@ -11,6 +11,7 @@
 ORG &4800
 
 ; --- Tile source LUTs and data tables ---
+.tile_source_lut
     EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
     EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
     EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
@@ -27,6 +28,7 @@ ORG &4800
     EQUB &42, &42, &42, &42, &43, &43, &43, &43
     EQUB &44, &44, &44, &44, &45, &45, &45, &45
     EQUB &46, &46, &46, &46, &47, &47, &47, &47
+.collision_flags
     EQUB &FF, &00, &00, &00, &FF, &00, &FF, &FF
     EQUB &00, &00, &00, &00, &00, &00, &00, &00
     EQUB &00, &00, &FF, &FF, &FF, &FF, &FF, &FF
@@ -40,62 +42,70 @@ ORG &4800
     STA &26
     LDX #&00
 .l_48AA
-    LDA &4C97,X
+    LDA crtc_table,X
     STA &FE00
-    LDA &4C98,X
+    LDA crtc_table + 1,X
     STA &FE01
     INX
     INX
     CPX #&0E
     BNE l_48AA
     LDA &26
-    STA &48D5
-    LDX #&CB
-    LDY #&48
+    STA l_48D3 + 2
+    LDX #LO(oscli_load_level_g)
+    LDY #HI(oscli_load_level_g)
     JSR &FFF7    ; OSCLI
-    JMP &48D8
+    JMP l_48D8
+.oscli_load_level_g
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
+.l_48D3
     EQUB &65, &6C, &00, &47, &0D
 .l_48D8
-    LDX #&E2
-    LDY #&48
+    LDX #LO(oscli_load_fastio)
+    LDY #HI(oscli_load_fastio)
     JSR &FFF7    ; OSCLI
-    JMP &48F4
+    JMP l_48F4
+.oscli_load_fastio
     EQUB &4C, &6F, &61, &64, &20, &46, &61, &73
     EQUB &74, &49, &2F, &4F, &20, &35, &38, &30
     EQUB &30, &0D
 .l_48F4
     LDA &26
-    STA &490D
-    LDX #&03
-    LDY #&49
+    STA l_490B + 2
+    LDX #LO(oscli_load_level_t)
+    LDY #HI(oscli_load_level_t)
     JSR &FFF7    ; OSCLI
-    JMP &4915
+    JMP l_4915
+.oscli_load_level_t
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
+.l_490B
     EQUB &65, &6C, &00, &54, &20, &35, &44, &38
     EQUB &30, &0D
 .l_4915
     LDA &26
-    STA &492E
-    LDX #&24
-    LDY #&49
+    STA l_492C + 2
+    LDX #LO(oscli_load_level_s)
+    LDY #HI(oscli_load_level_s)
     JSR &FFF7    ; OSCLI
-    JMP &4935
+    JMP l_4935
+.oscli_load_level_s
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
+.l_492C
     EQUB &65, &6C, &00, &53, &20, &33, &30, &30
     EQUB &0D
 .l_4935
-    LDX #&3F
-    LDY #&49
+    LDX #LO(oscli_load_tabs)
+    LDY #HI(oscli_load_tabs)
     JSR &FFF7    ; OSCLI
-    JMP &494D
+    JMP game_init
+.oscli_load_tabs
     EQUB &4C, &6F, &61, &64, &20, &54, &61, &62
     EQUB &73, &20, &31, &30, &30, &0D
 
 ; --- Game initialisation — copy tables, set IRQ, init state ---
 .game_init
     SEI
-    JSR &5756
+    JSR swap_0600_0d00
     LDA #&02
     STA &0258
     LDA #&01
@@ -104,14 +114,16 @@ ORG &4800
     LDY #&00
 .l_495F
     LDA &5800,Y
+.l_4962
     STA &0700,Y
     LDA #&00
+.l_4967
     STA &5800,Y
     INY
     BNE l_495F
-    INC &4961
-    INC &4964
-    INC &4969
+    INC l_495F + 2
+    INC l_4962 + 2
+    INC l_4967 + 2
     DEX
     BNE l_495F
     LDX #&FF
@@ -174,9 +186,9 @@ ORG &4800
     STA &09                     ; Clear score high
     LDA #&09
     STA &24                     ; Lives = 9
-    JSR &550D                   ; Initialise score display
-    JSR &564F                   ; Load level map from disc
-    JSR &525F                   ; Draw status bar
+    JSR l_550D                   ; Initialise score display
+    JSR load_level_data                   ; Load level map from disc
+    JSR l_525F                   ; Draw status bar
     LDA #&00
     STA &06                     ; Map source low = &0300
     LDA #&03
@@ -184,29 +196,30 @@ ORG &4800
     JSR &0889                   ; engine: render_map
     PLA
     STA &23                     ; Restore sprite update inhibit
-    JSR &5553                   ; Draw "FROGMAN BY MG RTW" title
+    JSR l_5553                   ; Draw "FROGMAN BY MG RTW" title
     LDA #&02                    ; Row 2
     STA &1D
     LDA #&00
     STA &0B                     ; Tile Y = 0
     LDA #&08
     STA &0A                     ; Tile X = 8
-    LDX #&56                    ; String pointer low
-    LDY #&54                    ; String pointer high (&5456)
-    JSR &5488                   ; Draw string: "FROGMAN BY MG RTW"
+    LDX #LO(str_title)                    ; String pointer low
+    LDY #HI(str_title)                    ; String pointer high (&5456)
+    JSR game_routines_5                   ; Draw string: "FROGMAN BY MG RTW"
     LDA #&07                    ; Row 7
     STA &1D
     LDA #&01
     STA &0B                     ; Tile Y = 1
     LDA #&08
     STA &0A                     ; Tile X = 8
-    LDX #&6F                    ; String pointer low
-    LDY #&54                    ; String pointer high (&546F)
-    JSR &5488                   ; Draw string: "PRESS SPACE TO START"
+    LDX #LO(str_press_space)                    ; String pointer low
+    LDY #HI(str_press_space)                    ; String pointer high (&546F)
+    JSR game_routines_5                   ; Draw string: "PRESS SPACE TO START"
     LDA #&62
 .l_4A23
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BPL l_4A23
+.wait_for_space_done
     LDA #&14
     STA &0F
     LDA #&10
@@ -222,75 +235,75 @@ ORG &4800
     LDA #&00
     STA &19
     STA &20
-    JSR &525F
+    JSR l_525F
 
 ; --- Main game loop — keyboard, collision, movement ---
 .main_loop
     JSR &0BE9    ; engine: tile_addr_setup
     LDA #&70
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BPL l_4A5C
 .l_4A54
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BMI l_4A54
-    JMP &5175
+    JMP game_state_handlers
 .l_4A5C
-    JSR &4C12
+    JSR get_tile_at_frog
     PHA
-    JSR &4C29
+    JSR check_tile_solid
     BEQ l_4A68
-    JMP &4B71
+    JMP l_4B71
 .l_4A68
     LDA #&00
     STA &1C
     PLA
     CMP #&03
     BNE l_4A74
-    JMP &4F45
+    JMP l_4F45
 .l_4A74
     CMP #&02
     BNE l_4A7B
-    JMP &4F75
+    JMP l_4F75
 .l_4A7B
     CMP #&11
     BNE l_4A82
-    JMP &5160
+    JMP check_tile_effect
 .l_4A82
     CMP #&05
     BNE l_4A89
-    JMP &51C7
+    JMP move_right_check
 .l_4A89
     CMP #&1E
     BNE l_4A90
-    JMP &5212
+    JMP move_left_check
 .l_4A90
     CMP #&10
     BNE l_4A97
-    JMP &53F9
+    JMP place_tile_1c
 .l_4A97
     CMP #&1C
     BNE l_4A9E
-    JMP &540C
+    JMP place_tile_1d
 .l_4A9E
     CMP #&1D
     BNE l_4AA5
-    JMP &5411
+    JMP place_tile_00
 .l_4AA5
     LDA &11
     STA &0A
     LDA &12
     STA &0B
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&04
     BNE l_4AC1
     PHA
     LDA &20
     BMI l_4ABD
     PLA
-    JMP &549E
+    JMP handle_map_reveal
 .l_4ABD
     PLA
-    JMP &4AC9
+    JMP l_4AC9
 .l_4AC1
     PHA
     LDA &20
@@ -300,77 +313,78 @@ ORG &4800
 .l_4AC9
     CMP #&1F
     BNE l_4AD0
-    JMP &55E1
+    JMP handle_special_tile
 .l_4AD0
     PHA
     LDA #&00
     STA &21
     PLA
+.check_passthrough
     CMP #&20
     BCS l_4AE1
     CMP #&12
     BNE l_4AF2
-    JMP &5175
+    JMP game_state_handlers
 .l_4AE1
-    JSR &4E6B
+    JSR l_4E69 + 2
     CMP #&09
     BNE l_4AEB
-    JSR &536C
+    JSR collect_item
 .l_4AEB
     CMP #&05
     BNE l_4AF2
-    JSR &5386
+    JSR clear_tile_pickup
 .l_4AF2
     INC &0B
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&20
     BCC l_4B05
-    JSR &4E6B
+    JSR l_4E69 + 2
     CMP #&0B
     BNE l_4B05
-    JSR &539C
+    JSR drop_item
 .l_4B05
     LDA #&42
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BPL l_4B0F
-    JMP &4D8F
+    JMP move_down
 .l_4B0F
     LDA #&61
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BPL l_4B19
-    JMP &4E80
+    JMP move_right
 .l_4B19
     LDA #&48
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BPL l_4B23
-    JMP &4FA5
+    JMP move_up_check
 .l_4B23
     LDA &07
     CMP #&03
     BEQ l_4B51
     LDA #&20
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BPL l_4B3D
 .l_4B30
-    JSR &4D1A
-    JSR &4E64
+    JSR l_4D1A
+    JSR scroll_step_table_4 + 4
     BMI l_4B30
     LDX #&00
-    JMP &5285
+    JMP scroll_routines
 .l_4B3D
     LDA #&71
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BPL l_4B51
 .l_4B44
-    JSR &4D1A
-    JSR &4E64
+    JSR l_4D1A
+    JSR scroll_step_table_4 + 4
     BMI l_4B44
     LDX #&01
-    JMP &5285
+    JMP scroll_routines
 .l_4B51
-    JSR &4D1A
+    JSR l_4D1A
     LDA #&65
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BPL l_4B6B
     JSR &0892    ; engine: init_game
     LDA &23
@@ -378,24 +392,24 @@ ORG &4800
     STA &23
 .l_4B64
     LDA #&65
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BMI l_4B64
 .l_4B6B
-    JMP &4A4A
+    JMP main_loop
 .l_4B6E
-    JMP &4A68
+    JMP l_4A68
 .l_4B71
     LDA &11
     STA &0A
     LDA &12
     STA &0B
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&06
     BEQ l_4B6E
-    JSR &4C12
+    JSR get_tile_at_frog
     CMP #&20
     BCC l_4B8E
-    JSR &4E6B
+    JSR l_4E69 + 2
     CMP #&03
     BEQ l_4B6E
 .l_4B8E
@@ -406,21 +420,22 @@ ORG &4800
     BCS l_4BD1
     LDA &1C
     BEQ l_4B9E
-    JMP &4BEA
+    JMP fall_loop
 .l_4B9E
     LDA #&01
     ORA &19
     STA &19
     LDX #&00
 .l_4BA6
-    STX &4BBB
-    JSR &4D1A
-    JSR &4D2E
-    LDA &4BE2,X
+    STX l_4BBA + 1
+    JSR l_4D1A
+    JSR l_4D2E
+    LDA fall_step_table,X
     CLC
     ADC &10
     STA &10
     JSR &0BE9    ; engine: tile_addr_setup
+.l_4BBA
     LDX #&00
     INX
     CPX #&08
@@ -430,8 +445,8 @@ ORG &4800
     STA &19
     LDA #&FF
     STA &1C
-    JSR &4D2E
-    JMP &4A4A
+    JSR l_4D2E
+    JMP main_loop
 .l_4BD1
     INC &14
     LDA #&00
@@ -444,23 +459,26 @@ ORG &4800
 ; --- Helper routines called from main loop ---
 .game_routines_1
     EQUB &0B
-    JMP &4A4A
+    JMP main_loop
+.fall_step_table
     ORA (&01,X)
     ORA (&02,X)
     EQUB &02
     EQUB &02
     EQUB &03
     EQUB &04
+.fall_loop
     LDX #&00
 .l_4BEC
-    STX &4C00
-    JSR &4D1A
-    JSR &4D2E
+    STX l_4BFF + 1
+    JSR l_4D1A
+    JSR l_4D2E
     CLC
     LDA &10
     ADC #&04
     STA &10
     JSR &0BE9    ; engine: tile_addr_setup
+.l_4BFF
     LDX #&00
     INX
     CPX #&04
@@ -468,8 +486,9 @@ ORG &4800
     LDA &19
     AND #&02
     STA &19
-    JSR &4D2E
-    JMP &4A4A
+    JSR l_4D2E
+    JMP main_loop
+.get_tile_at_frog
     LDA &12
     CMP #&07
     BCC l_4C1B
@@ -488,19 +507,20 @@ ORG &4800
     TAY
     LDA (&06),Y
     RTS
+.check_tile_solid
     CMP #&20
     BCS l_4C32
     TAY
-    LDA &4880,Y
+    LDA collision_flags,Y
     RTS
 .l_4C32
-    JSR &4E6B
+    JSR l_4E69 + 2
     CMP #&05
     BEQ l_4C42
     CMP #&07
     BEQ l_4C42
     TAY
-    LDA &4C52,Y
+    LDA tile_type_table,Y
     RTS
 .l_4C42
     LDA &1B
@@ -513,6 +533,7 @@ ORG &4800
 .l_4C4F
     LDA #&FF
     RTS
+.tile_type_table
     BRK
     BRK
     BRK
@@ -526,6 +547,7 @@ ORG &4800
     EQUB &FF
     BRK
     BRK
+.get_tile_at_pos
     LDA &0A
     CMP #&10
     BCS l_4C76
@@ -544,6 +566,7 @@ ORG &4800
 .l_4C76
     LDA #&00
     RTS
+.set_tile_at_pos
     PHA
     LDA &0B
     ASL A
@@ -565,6 +588,7 @@ ORG &4800
     STA &0B
     PLA
     JMP &0880    ; engine: block_copy
+.crtc_table
 
 ; --- CRTC register table (data) ---
     EQUB &01, &40, &02, &5A, &06, &14, &07, &1D
@@ -702,17 +726,17 @@ ORG &4800
     LSR A
     LSR A
     STA &0B
-    JSR &4D5B
+    JSR l_4D5B
     INC &0A
     LDA &0A
     CMP #&10
     BCS l_4D25
-    JSR &4D5B
+    JSR l_4D5B
     INC &0B
     LDA &0B
     CMP #&08
     BCS l_4D2D
-    JSR &4D5B
+    JSR l_4D5B
 .l_4D59
     DEC &0A
 .l_4D5B
@@ -723,13 +747,14 @@ ORG &4800
     ASL A
     CLC
     ADC &06
-    STA &4D71
+    STA l_4D70 + 1
     LDA &07
     ADC #&00
-    STA &4D72
+    STA l_4D70 + 2
     LDY &0A
+.l_4D70
     LDA &FFFF,Y
-    STA &4D84
+    STA l_4D83 + 1
     LDA &0A
     PHA
     ASL A
@@ -739,6 +764,7 @@ ORG &4800
     PHA
     ASL A
     STA &0B
+.l_4D83
     LDA #&00
     JSR &0880    ; engine: block_copy
     PLA
@@ -746,8 +772,9 @@ ORG &4800
     PLA
     STA &0A
     RTS
-    JSR &4D1A
-    JSR &4D2E
+.move_down
+    JSR l_4D1A
+    JSR l_4D2E
     LDA #&00
     STA &19
     JSR &0BE9    ; engine: tile_addr_setup
@@ -756,17 +783,17 @@ ORG &4800
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BEQ l_4E02
     LDA #&01
     STA &19
     INC &0A
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BEQ l_4E0F
     LDA #&68
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BMI l_4E0F
     INC &11
     LDA &11
@@ -781,19 +808,20 @@ ORG &4800
     LDA #&00
     STA &19
     JSR &0BE9    ; engine: tile_addr_setup
-    JMP &4A4A
+    JMP main_loop
 .l_4DE1
     LDX #&00
 .l_4DE3
-    JSR &4D1A
-    JSR &4D2E
+    JSR l_4D1A
+    JSR l_4D2E
     INC &0F
     LDA &10
     CLC
-    ADC &4E58,X
+    ADC scroll_step_table_8,X
     STA &10
-    STX &4DFA
+    STX l_4DF9 + 1
     JSR &0BE9    ; engine: tile_addr_setup
+.l_4DF9
     LDX #&00
     INX
     CPX #&08
@@ -802,9 +830,9 @@ ORG &4800
 .l_4E02
     LDA #&00
     STA &19
-    JSR &4D1A
-    JSR &4D2E
-    JMP &4A4A
+    JSR l_4D1A
+    JSR l_4D2E
+    JMP main_loop
 .l_4E0F
     LDX #&00
     INC &11
@@ -819,34 +847,38 @@ ORG &4800
     LDA #&00
     STA &19
     JSR &0BE9    ; engine: tile_addr_setup
-    JMP &4A4A
+    JMP main_loop
 .l_4E2E
-    JSR &4D1A
-    JSR &4D2E
+    JSR l_4D1A
+    JSR l_4D2E
     INC &0F
     LDA &10
     CLC
-    ADC &4E60,X
+    ADC scroll_step_table_4,X
     STA &10
-    STX &4E45
+    STX l_4E44 + 1
     JSR &0BE9    ; engine: tile_addr_setup
+.l_4E44
     LDX #&00
     INX
     CPX #&04
     BNE l_4E2E
     LDA #&00
     STA &19
-    JSR &4D1A
-    JSR &4D2E
-    JMP &4A4A
+    JSR l_4D1A
+    JSR l_4D2E
+    JMP main_loop
+.scroll_step_table_8
 
 ; --- Collision/step tables (data) ---
     EQUB &FD, &FE, &FF, &00, &00, &03, &02, &01
+.scroll_step_table_4
     EQUB &FE, &FF, &01, &02, &8D, &4F, &FE, &2C
 
 ; --- More game logic — movement, collision response ---
 .game_routines_3
     EQUB &4F
+.l_4E69
     INC &8C60,X
     ROR &384E,X
     SBC #&20
@@ -859,8 +891,9 @@ ORG &4800
     LDA &4000,Y
     LDY #&00
     RTS
-    JSR &4D1A
-    JSR &4D2E
+.move_right
+    JSR l_4D1A
+    JSR l_4D2E
     LDA #&02
     STA &19
     JSR &0BE9    ; engine: tile_addr_setup
@@ -869,17 +902,17 @@ ORG &4800
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BEQ l_4EF1
     LDA #&03
     STA &19
     DEC &0A
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BEQ l_4EFE
     LDA #&68
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BMI l_4EFE
     DEC &11
     BEQ l_4EB9
@@ -894,19 +927,20 @@ ORG &4800
     LDA #&02
     STA &19
     JSR &0BE9    ; engine: tile_addr_setup
-    JMP &4A4A
+    JMP main_loop
 .l_4ED0
     LDX #&00
 .l_4ED2
-    JSR &4D1A
-    JSR &4D2E
+    JSR l_4D1A
+    JSR l_4D2E
     DEC &0F
     LDA &10
     CLC
-    ADC &4E58,X
+    ADC scroll_step_table_8,X
     STA &10
-    STX &4EE9
+    STX l_4EE8 + 1
     JSR &0BE9    ; engine: tile_addr_setup
+.l_4EE8
     LDX #&00
     INX
     CPX #&08
@@ -915,9 +949,9 @@ ORG &4800
 .l_4EF1
     LDA #&02
     STA &19
-    JSR &4D1A
-    JSR &4D2E
-    JMP &4A4A
+    JSR l_4D1A
+    JSR l_4D2E
+    JMP main_loop
 .l_4EFE
     LDX #&00
     DEC &11
@@ -931,44 +965,46 @@ ORG &4800
     LDA #&02
     STA &19
     JSR &0BE9    ; engine: tile_addr_setup
-    JMP &4A4A
+    JMP main_loop
 .l_4F1B
-    JSR &4D1A
-    JSR &4D2E
+    JSR l_4D1A
+    JSR l_4D2E
     DEC &0F
     LDA &10
     CLC
-    ADC &4E60,X
+    ADC scroll_step_table_4,X
     STA &10
-    STX &4F32
+    STX l_4F31 + 1
     JSR &0BE9    ; engine: tile_addr_setup
+.l_4F31
     LDX #&00
     INX
     CPX #&04
     BNE l_4F1B
     LDA #&02
     STA &19
-    JSR &4D1A
-    JSR &4D2E
-    JMP &4A4A
+    JSR l_4D1A
+    JSR l_4D2E
+    JMP main_loop
 .l_4F45
-    JSR &4F52
-    JSR &4C12
+    JSR l_4F52
+    JSR get_tile_at_frog
     CMP #&03
     BEQ l_4F45
-    JMP &4A4A
+    JMP main_loop
 .l_4F52
     LDX #&00
 .l_4F54
-    STX &4F6A
-    JSR &4D1A
-    JSR &4D2E
+    STX l_4F69 + 1
+    JSR l_4D1A
+    JSR l_4D2E
     INC &0F
     CLC
     LDA &10
     ADC #&04
     STA &10
     JSR &0BE9    ; engine: tile_addr_setup
+.l_4F69
     LDX #&00
     INX
     CPX #&04
@@ -977,23 +1013,24 @@ ORG &4800
     INC &12
     RTS
 .l_4F75
-    JSR &4F82
-    JSR &4C12
+    JSR l_4F82
+    JSR get_tile_at_frog
     CMP #&02
     BEQ l_4F75
-    JMP &4A4A
+    JMP main_loop
 .l_4F82
     LDX #&00
 .l_4F84
-    STX &4F9A
-    JSR &4D1A
-    JSR &4D2E
+    STX l_4F99 + 1
+    JSR l_4D1A
+    JSR l_4D2E
     DEC &0F
     CLC
     LDA &10
     ADC #&04
     STA &10
     JSR &0BE9    ; engine: tile_addr_setup
+.l_4F99
     LDX #&00
     INX
     CPX #&04
@@ -1001,17 +1038,18 @@ ORG &4800
     DEC &11
     INC &12
     RTS
+.move_up_check
     LDA &19
     AND #&02
     BNE l_4FAE
-    JMP &503E
+    JMP l_503E
 .l_4FAE
     LDY &11
     DEY
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&03
     BNE l_5015
 .l_4FBE
@@ -1019,9 +1057,9 @@ ORG &4800
     STA &19
     LDX #&00
 .l_4FC4
-    STX &4FE0
-    JSR &4D1A
-    JSR &4D2E
+    STX l_4FDF + 1
+    JSR l_4D1A
+    JSR l_4D2E
     SEC
     LDA &10
     SBC #&04
@@ -1031,6 +1069,7 @@ ORG &4800
     EOR #&01
     STA &19
     JSR &0BE9    ; engine: tile_addr_setup
+.l_4FDF
     LDX #&00
     INX
     CPX #&04
@@ -1042,7 +1081,7 @@ ORG &4800
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&03
     BEQ l_4FBE
     LDA #&02
@@ -1052,40 +1091,40 @@ ORG &4800
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BEQ l_5012
-    JMP &4EFE
+    JMP l_4EFE
 .l_5012
-    JMP &4A4A
+    JMP main_loop
 .l_5015
     LDA &11
     STA &0A
     LDA &12
     STA &0B
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&06
     BEQ l_5027
-    JMP &5128
+    JMP l_5128
 .l_5027
     LDY &12
     DEY
     STY &0B
     LDA &11
     STA &0A
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BEQ l_503B
-    JMP &50A5
+    JMP l_50A5
 .l_503B
-    JMP &4A4A
+    JMP main_loop
 .l_503E
     LDY &11
     INY
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&02
     BNE l_5015
 .l_504E
@@ -1093,9 +1132,9 @@ ORG &4800
     STA &19
     LDX #&00
 .l_5054
-    STX &5070
-    JSR &4D1A
-    JSR &4D2E
+    STX l_506F + 1
+    JSR l_4D1A
+    JSR l_4D2E
     SEC
     LDA &10
     SBC #&04
@@ -1105,6 +1144,7 @@ ORG &4800
     EOR #&01
     STA &19
     JSR &0BE9    ; engine: tile_addr_setup
+.l_506F
     LDX #&00
     INX
     CPX #&04
@@ -1116,7 +1156,7 @@ ORG &4800
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&02
     BEQ l_504E
     LDA #&00
@@ -1126,14 +1166,14 @@ ORG &4800
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BNE l_50A2
-    JMP &5012
+    JMP l_5012
 .l_50A2
-    JMP &4E0F
+    JMP l_4E0F
 .l_50A5
-    JSR &4D2E
+    JSR l_4D2E
 .l_50A8
     DEC &12
     BMI l_5105
@@ -1142,7 +1182,7 @@ ORG &4800
     STA &0B
     LDA &11
     STA &0A
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&07
     BEQ l_50E5
     LDA &11
@@ -1159,16 +1199,17 @@ ORG &4800
     STA &10
     LDX #&00
 .l_50CD
-    STX &50DC
+    STX l_50DB + 1
     DEC &10
-    JSR &4D1A
-    JSR &4D2E
+    JSR l_4D1A
+    JSR l_4D2E
     JSR &0BE9    ; engine: tile_addr_setup
+.l_50DB
     LDX #&00
     INX
     CPX #&10
     BNE l_50CD
-    JMP &4B05
+    JMP l_4B05
 .l_50E5
     LDA &11
     ASL A
@@ -1181,12 +1222,12 @@ ORG &4800
     JSR &0880    ; engine: block_copy
     LDX #&09
 .l_50F7
-    JSR &4D1A
+    JSR l_4D1A
     DEX
     BNE l_50F7
     LDA #&07
     JSR &0880    ; engine: block_copy
-    JMP &50A8
+    JMP l_50A8
 .l_5105
     LDA #&07
     STA &12
@@ -1194,7 +1235,7 @@ ORG &4800
     STA &10
     DEC &14
     JSR &0886    ; engine: setup_map_render
-    JMP &50AC
+    JMP l_50AC
 .l_5115
     LDA #&07
     STA &12
@@ -1203,7 +1244,7 @@ ORG &4800
     DEC &14
     JSR &0886    ; engine: setup_map_render
     JSR &0BE9    ; engine: tile_addr_setup
-    JMP &4A4A
+    JMP main_loop
 .l_5128
     LDA &11
     STA &0A
@@ -1211,35 +1252,37 @@ ORG &4800
     DEY
     BMI l_5115
     STY &0B
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BEQ l_5158
     LDX #&07
 .l_513D
-    STX &5152
+    STX l_5151 + 1
     LDA &10
     SEC
-    SBC &4BE2,X
+    SBC fall_step_table,X
     STA &10
-    JSR &4D1A
-    JSR &4D2E
+    JSR l_4D1A
+    JSR l_4D2E
     JSR &0BE9    ; engine: tile_addr_setup
+.l_5151
     LDX #&00
     DEX
     BPL l_513D
     DEC &12
 .l_5158
-    JMP &4A4A
+    JMP main_loop
 .l_515B
     LDA #&00
-    JMP &4A82
-    STA &515C
+    JMP l_4A82
+.check_tile_effect
+    STA l_515B + 1
     LDA &08
-    JSR &4E6B
+    JSR l_4E69 + 2
     CMP #&01
     BEQ l_515B
     LDA &09
-    JSR &4E6B
+    JSR l_4E69 + 2
     CMP #&01
     BEQ l_515B
 
@@ -1247,12 +1290,12 @@ ORG &4800
 .game_state_handlers
     LDX #&00
 .l_5177
-    STX &51A1
-    JSR &4D1A
-    JSR &4D1A
-    JSR &4D1A
-    JSR &4D2E
-    LDA &4BE2,X
+    STX l_51A0 + 1
+    JSR l_4D1A
+    JSR l_4D1A
+    JSR l_4D1A
+    JSR l_4D2E
+    LDA fall_step_table,X
     CLC
     ADC &10
     STA &10
@@ -1262,27 +1305,29 @@ ORG &4800
     LDY &12
     INY
     STY &0B
-    JSR &4C5F
-    JSR &4C79
+    JSR get_tile_at_pos
+    JSR set_tile_at_pos
+.l_51A0
     LDX #&00
     INX
     CPX #&08
     BNE l_5177
     LDX #&32
-    JSR &53F2
+    JSR l_53F2
     LDA #&00
-    JSR &4E64
+    JSR scroll_step_table_4 + 4
     BPL l_51B7
     LDA #&01
     STA &24
 .l_51B7
     DEC &24
     BEQ l_51C1
-    JSR &525F
-    JMP &4A28
+    JSR l_525F
+    JMP wait_for_space_done
 .l_51C1
-    JSR &525F
-    JMP &49CD
+    JSR l_525F
+    JMP game_loop_start
+.move_right_check
     LDY &11
     INY
     CPY #&10
@@ -1292,32 +1337,34 @@ ORG &4800
     STA &0F
     INC &13
     JSR &0886    ; engine: setup_map_render
-    JMP &4A4A
+    JMP main_loop
 .l_51DC
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BNE l_51ED
-    JMP &4B05
+    JMP l_4B05
 .l_51ED
     LDX #&00
 .l_51EF
-    STX &5207
-    JSR &4D2E
+    STX l_5206 + 1
+    JSR l_4D2E
     INC &0F
     JSR &0BE9    ; engine: tile_addr_setup
-    JSR &4D1A
-    JSR &4D1A
-    JSR &4D1A
-    JSR &4D1A
+    JSR l_4D1A
+    JSR l_4D1A
+    JSR l_4D1A
+    JSR l_4D1A
+.l_5206
     LDX #&00
     INX
     CPX #&04
     BNE l_51EF
     INC &11
-    JMP &4A4A
+    JMP main_loop
+.move_left_check
     LDY &11
     DEY
     CPY #&10
@@ -1328,32 +1375,33 @@ ORG &4800
     STA &0F
     DEC &13
     JSR &0886    ; engine: setup_map_render
-    JMP &4A4A
+    JMP main_loop
 .l_5229
     STY &0A
     LDA &12
     STA &0B
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BNE l_523A
-    JMP &4B05
+    JMP l_4B05
 .l_523A
     LDX #&00
 .l_523C
-    STX &5254
-    JSR &4D2E
+    STX l_5253 + 1
+    JSR l_4D2E
     DEC &0F
     JSR &0BE9    ; engine: tile_addr_setup
-    JSR &4D1A
-    JSR &4D1A
-    JSR &4D1A
-    JSR &4D1A
+    JSR l_4D1A
+    JSR l_4D1A
+    JSR l_4D1A
+    JSR l_4D1A
+.l_5253
     LDX #&00
     INX
     CPX #&04
     BNE l_523C
     DEC &11
-    JMP &4A4A
+    JMP main_loop
 .l_525F
     LDA #&03
     STA &0A
@@ -1371,21 +1419,21 @@ ORG &4800
     LDA #&07
     STA &1D
     LDA &24
-    JSR &5416
+    JSR draw_digit
     RTS
 
 ; --- Scrolling routines ---
 .scroll_routines
     LDA &08,X
-    STX &52C7
+    STX l_52C6 + 1
     BEQ l_528F
-    JMP &530F
+    JMP game_routines_4
 .l_528F
     LDA &11
     STA &0A
     LDA &12
     STA &0B
-    JSR &52D8
+    JSR l_52D8
     BEQ l_52C6
     LDA &19
     AND #&02
@@ -1393,7 +1441,7 @@ ORG &4800
     LDY &11
     DEY
     STY &0A
-    JMP &52AF
+    JMP l_52AF
 .l_52AA
     LDY &11
     INY
@@ -1401,32 +1449,32 @@ ORG &4800
 .l_52AF
     LDA &12
     STA &0B
-    JSR &52D8
+    JSR l_52D8
     BEQ l_52C6
     LDA &11
     STA &0A
     LDY &12
     INY
     STY &0B
-    JSR &52D8
+    JSR l_52D8
     BNE l_52D5
 .l_52C6
     LDX #&00
     STA &08,X
     LDA #&00
-    JSR &4C79
+    JSR set_tile_at_pos
     JSR &0BE9    ; engine: tile_addr_setup
-    JSR &525F
+    JSR l_525F
 .l_52D5
-    JMP &4A4A
+    JMP main_loop
 .l_52D8
-    JSR &4C5F
+    JSR get_tile_at_pos
     CMP #&20
     BCC l_52EC
     PHA
-    JSR &4E6B
+    JSR l_4E69 + 2
     TAX
-    LDA &52EF,X
+    LDA collision_check_table,X
     TAY
     PLA
     CPY #&00
@@ -1434,6 +1482,7 @@ ORG &4800
 .l_52EC
     LDA #&01
     RTS
+.collision_check_table
 
 ; --- Collision table (data) ---
     EQUB &00, &00, &00, &00, &00, &FF, &FF, &FF
@@ -1447,12 +1496,12 @@ ORG &4800
     STA &0B
     LDA &11
     STA &0A
-    JSR &4C5F
+    JSR get_tile_at_pos
     BNE l_5369
-    LDX &52C7
+    LDX l_52C6 + 1
     LDA &08,X
     STA &27
-    JSR &4E6B
+    JSR l_4E69 + 2
     STA &28
     CMP #&04
     BEQ l_533C
@@ -1460,17 +1509,17 @@ ORG &4800
     BEQ l_533C
     DEC &0B
     BMI l_5369
-    JSR &4C5F
-    JSR &4C29
+    JSR get_tile_at_pos
+    JSR check_tile_solid
     BEQ l_5369
 .l_533C
-    JSR &4D2E
+    JSR l_4D2E
     LDA &11
     STA &0A
     LDA &12
     STA &0B
     LDA &27
-    JSR &4C79
+    JSR set_tile_at_pos
     LDA &28
     CMP #&04
     BEQ l_535F
@@ -1485,9 +1534,10 @@ ORG &4800
     LDA #&00
     STA &08,X
     JSR &0BE9    ; engine: tile_addr_setup
-    JSR &525F
+    JSR l_525F
 .l_5369
-    JMP &4A4A
+    JMP main_loop
+.collect_item
     PHA
     LDX #&00
 .l_536F
@@ -1501,21 +1551,23 @@ ORG &4800
     RTS
 .l_537C
     INC &08,X
-    JSR &525F
-    JSR &5777
+    JSR l_525F
+    JSR silence_all
     PLA
     RTS
+.clear_tile_pickup
     PHA
     LDA &11
     STA &0A
     LDA &12
     STA &0B
     LDA #&00
-    JSR &4C79
+    JSR set_tile_at_pos
     JSR &0BE9    ; engine: tile_addr_setup
-    JSR &5777
+    JSR silence_all
     PLA
     RTS
+.drop_item
     PHA
     LDX #&00
 .l_539F
@@ -1530,14 +1582,14 @@ ORG &4800
 .l_53AC
     LDA #&00
     STA &08,X
-    JSR &525F
+    JSR l_525F
     LDA &11
     STA &0A
     LDY &12
     INY
     STY &0B
     LDA #&00
-    JSR &4C79
+    JSR set_tile_at_pos
     LDA &11
     STA &0A
     LDY &12
@@ -1545,29 +1597,31 @@ ORG &4800
     INY
     STY &0B
     LDA #&00
-    JSR &4C79
+    JSR set_tile_at_pos
     LDA #&00
     LDX #&07
-    JSR &4D08
+    JSR set_palette
     LDX #&14
-    JSR &53F2
+    JSR l_53F2
     LDX #&06
 .l_53DE
-    STX &53EC
+    STX l_53EB + 1
     LDA #&00
-    JSR &4D08
+    JSR set_palette
     LDX #&05
-    JSR &53F2
+    JSR l_53F2
+.l_53EB
     LDX #&00
     DEX
     BPL l_53DE
     PLA
     RTS
 .l_53F2
-    JSR &4D1A
+    JSR l_4D1A
     DEX
     BPL l_53F2
     RTS
+.place_tile_1c
     LDA #&1C
 .l_53FB
     PHA
@@ -1577,12 +1631,15 @@ ORG &4800
     INY
     STY &0B
     PLA
-    JSR &4C79
-    JMP &4B05
+    JSR set_tile_at_pos
+    JMP l_4B05
+.place_tile_1d
     LDA #&1D
-    JMP &53FB
+    JMP l_53FB
+.place_tile_00
     LDA #&00
-    JMP &53FB
+    JMP l_53FB
+.draw_digit
     STA &00
     LDA #&00
     ASL &00
@@ -1606,7 +1663,7 @@ ORG &4800
     LDY #&0F
 .l_543C
     LDA (&00),Y
-    AND &544E,X
+    AND digit_mask_table,X
     STA (&02),Y
     DEY
     BPL l_543C
@@ -1615,13 +1672,18 @@ ORG &4800
     ADC #&02
     STA &0A
     RTS
+.digit_mask_table
 
 ; --- Palette and sprite data tables ---
     EQUB &00, &03, &0C, &0F, &30, &33, &3C, &3F
+.str_title
     EQUB &24, &25, &0F, &1B, &18, &10, &16, &0A
     EQUB &17, &25, &25, &0B, &22, &25, &16, &10
     EQUB &25, &24, &25, &1B, &1D, &20, &25, &24
-    EQUB &FF, &24, &25, &19, &1B, &0E, &1C, &1C
+.l_546E
+    EQUB &FF
+.str_press_space
+    EQUB &24, &25, &19, &1B, &0E, &1C, &1C
     EQUB &25, &1C, &19, &0A, &0C, &0E, &25, &1D
     EQUB &18, &25, &1C, &1D, &0A, &1B, &1D, &25
     EQUB &24, &FF
@@ -1632,16 +1694,18 @@ ORG &4800
     STY &05
     LDY #&00
 .l_548E
-    STY &5499
+    STY l_5498 + 1
     LDA (&04),Y
     BMI l_549D
-    JSR &5416
+    JSR draw_digit
+.l_5498
     LDY #&00
     INY
     BNE l_548E
 .l_549D
     RTS
-    JSR &550D
+.handle_map_reveal
+    JSR l_550D
     LDA &20
     BNE l_54E3
     LDA #&81
@@ -1654,7 +1718,7 @@ ORG &4800
     STA &11
     LDA #&06
     STA &12
-    JSR &54FE
+    JSR l_54FE
     LDA #&00
     STA &06
     LDA #&03
@@ -1666,14 +1730,14 @@ ORG &4800
     LDA &08,X
     CMP #&38
     BCC l_54D5
-    JSR &5578
+    JSR l_5578
 .l_54D5
     INX
     CPX #&02
     BNE l_54CC
-    JSR &525F
-    JSR &5553
-    JMP &4A4A
+    JSR l_525F
+    JSR l_5553
+    JMP main_loop
 .l_54E3
     LDA #&80
     STA &20
@@ -1682,10 +1746,10 @@ ORG &4800
     LDA &1F
     STA &12
     JSR &0886    ; engine: setup_map_render
-    JSR &54FE
+    JSR l_54FE
     JSR &0BE9    ; engine: tile_addr_setup
-    JSR &5553
-    JMP &4A4A
+    JSR l_5553
+    JMP main_loop
 .l_54FE
     LDA &11
     ASL A
@@ -1702,28 +1766,29 @@ ORG &4800
     LDX #&07
 .l_550F
     TXA
-    STA &5538,X
+    STA palette_fade_table,X
     DEX
     BPL l_550F
 .l_5516
     LDX #&07
 .l_5518
-    LDA &5538,X
+    LDA palette_fade_table,X
     BEQ l_5523
     TAY
     DEY
     TYA
-    STA &5538,X
+    STA palette_fade_table,X
 .l_5523
     DEX
     BPL l_5518
     LDX #&04
-    JSR &53F2
-    JSR &5540
-    LDA &553F
+    JSR l_53F2
+    JSR l_5540
+    LDA palette_fade_last
     BNE l_5516
     LDX #&32
-    JMP &53F2
+    JMP l_53F2
+.palette_fade_table
     BRK
     BRK
     BRK
@@ -1731,55 +1796,59 @@ ORG &4800
     BRK
     BRK
     BRK
+.palette_fade_last
     BRK
 .l_5540
     LDY #&07
-    LDA &5538,Y
+    LDA palette_fade_table,Y
     STA &25
 .l_5547
-    LDA &5538,Y
+    LDA palette_fade_table,Y
     TAX
     TYA
-    JSR &4D08
+    JSR set_palette
     DEY
     BNE l_5547
     RTS
 .l_5553
     LDX #&07
 .l_5555
-    STX &555C
-    LDA &5538,X
+    STX l_555B + 1
+    LDA palette_fade_table,X
+.l_555B
     CMP #&00
     BEQ l_5565
     TAY
     INY
     TYA
-    STA &5538,X
+    STA palette_fade_table,X
 .l_5565
     DEX
     BPL l_5555
     LDX #&04
-    JSR &53F2
-    JSR &5540
-    LDA &553F
+    JSR l_53F2
+    JSR l_5540
+    LDA palette_fade_last
     CMP #&07
     BNE l_5553
     RTS
 .l_5578
     SEC
     PHA
-    STX &558A
+    STX l_5589 + 1
     SBC #&31
     STA &0A
     LDA #&06
     STA &0B
     PLA
-    JSR &4C79
+    JSR set_tile_at_pos
+.l_5589
     LDX #&00
     LDA #&00
     STA &08,X
     INC &22
     RTS
+.oscli_5592
     BIT &25
     ORA &2018,Y
     ASL &251B
@@ -1794,6 +1863,7 @@ ORG &4800
     ASL A
     ORA &25,X
     BIT &FF
+.oscli_55AD
     BIT &25
     ASL A
     EQUB &0C
@@ -1803,6 +1873,7 @@ ORG &4800
     ASL &1217
     ASL &250D
     BIT &FF
+.oscli_55BF
     BIT &25
     ORA &18,X
     EQUB &10, &10    ; BPL &55D5
@@ -1820,11 +1891,12 @@ ORG &4800
     ORA &0D0E,X
     AND &24
     EQUB &FF
+.handle_special_tile
     PHA
     LDA &21
     BEQ l_55EA
     PLA
-    JMP &4AD6
+    JMP check_passthrough
 .l_55EA
     LDA #&FF
     STA &21
@@ -1834,9 +1906,9 @@ ORG &4800
     STA &0A
     LDA #&04
     STA &0B
-    LDX #&92
-    LDY #&55
-    JSR &5488
+    LDX #LO(oscli_5592)
+    LDY #HI(oscli_5592)
+    JSR game_routines_5
     LDA &22
     CMP #&08
     BCS l_5625
@@ -1847,13 +1919,13 @@ ORG &4800
     STA &0A
     LDA #&08
     STA &0B
-    LDX #&AD
-    LDY #&55
-    JSR &5488
+    LDX #LO(oscli_55AD)
+    LDY #HI(oscli_55AD)
+    JSR game_routines_5
     LDX #&64
-    JSR &53F2
+    JSR l_53F2
     JSR &0889    ; engine: render_map
-    JMP &4A4A
+    JMP main_loop
 .l_5625
     LDA &20
     BNE l_5648
@@ -1863,67 +1935,75 @@ ORG &4800
     STA &0A
     LDA #&08
     STA &0B
-    LDX #&BF
-    LDY #&55
-    JSR &5488
+    LDX #LO(oscli_55BF)
+    LDY #HI(oscli_55BF)
+    JSR game_routines_5
     LDX #&64
-    JSR &53F2
+    JSR l_53F2
     LDA #&FF
     STA &22
-    JMP &4A4A
+    JMP main_loop
 .l_5648
     LDA &22
     BPL l_5607
 
 ; --- Level map loading from disc ---
 .load_level_map
-    JMP &564C
+    JMP load_level_map
+.load_level_data
     SEI
     JSR &0892    ; engine: init_game
-    JSR &5756
-    LDX #&60
-    LDY #&56
+    JSR swap_0600_0d00
+    LDX #LO(oscli_disc)
+    LDY #HI(oscli_disc)
     JSR &FFF7    ; OSCLI
-    JMP &5665
+    JMP l_5665
+.oscli_disc
     EQUB &44, &49, &53, &43, &0D
 .l_5665
     LDA &26
-    STA &567E
-    LDX #&74
-    LDY #&56
+    STA l_567C + 2
+    LDX #LO(oscli_load_level_m)
+    LDY #HI(oscli_load_level_m)
     JSR &FFF7    ; OSCLI
-    JMP &5686
+    JMP l_5686
+.oscli_load_level_m
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
+.l_567C
     EQUB &65, &6C, &00, &4D, &20, &35, &38, &30
     EQUB &30, &0D
 .l_5686
     LDX #&00
     LDA #&68
-    STA &5694
+    STA l_5692 + 2
     LDA #&1F
-    STA &5697
+    STA l_5695 + 2
 .l_5692
     LDA &6800,X
+.l_5695
     STA &1F00,X
     INX
     BNE l_5692
-    INC &5697
-    INC &5694
+    INC l_5695 + 2
+    INC l_5692 + 2
     BPL l_5692
     LDA &26
-    STA &56BC
-    LDX #&B2
-    LDY #&56
+    STA l_56BA + 2
+    LDX #LO(oscli_load_level_t2)
+    LDY #HI(oscli_load_level_t2)
     JSR &FFF7    ; OSCLI
-    JMP &56C4
+    JMP l_56C4
+.oscli_load_level_t2
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
+.l_56BA
     EQUB &65, &6C, &00, &54, &20, &36, &38, &30
     EQUB &30, &0D
 .l_56C4
-    LDX #&CE
-    LDY #&56
+    LDX #LO(oscli_load_tbar)
+    LDY #HI(oscli_load_tbar)
     JSR &FFF7    ; OSCLI
-    JMP &56DD
+    JMP l_56DD
+.oscli_load_tbar
     EQUB &4C, &6F, &61, &64, &20, &54, &62, &61
     EQUB &72, &20, &37, &38, &30, &30, &0D
 .l_56DD
@@ -1941,36 +2021,38 @@ ORG &4800
     STA &FE42
     LDA #&03
     STA &FE40
-    JSR &5756
+    JSR swap_0600_0d00
     LDA #&58
-    STA &5730
+    STA l_572E + 2
     LDA #&0F
-    STA &5733
+    STA l_5731 + 2
 .l_570C
     LDA #&0C
-    STA &571F
+    STA l_571D + 2
     LDA #&68
-    STA &571C
+    STA l_571A + 2
     LDX #&03
     LDY #&00
 .l_571A
     LDA &6800,Y
+.l_571D
     STA &0C80,Y
     INY
     BNE l_571A
-    INC &571C
-    INC &571F
+    INC l_571A + 2
+    INC l_571D + 2
     DEX
     BNE l_571A
     LDX #&00
 .l_572E
     LDA &5800,X
+.l_5731
     STA &0F00,X
     INX
     BNE l_572E
-    INC &5733
-    INC &5730
-    LDA &5733
+    INC l_5731 + 2
+    INC l_572E + 2
+    LDA l_5731 + 2
     CMP #&1F
     BNE l_572E
     LDA #&37
@@ -1979,7 +2061,7 @@ ORG &4800
     STA &10
     LDY #&00
     JSR &0BEB
-    JSR &576A
+    JSR clear_sprite_state
     CLI
     RTS
 
@@ -2024,7 +2106,7 @@ ORG &4800
     LDX #&01
     JSR set_palette
     LDX #&0A
-    JSR &53F2                   ; TODO: identify this routine
+    JSR l_53F2                   ; TODO: identify this routine
     LDA #&00
     TAX
     JMP set_palette
