@@ -1,3 +1,13 @@
+OSCLI=&FFF7
+OSWRCH=&FFEE
+CRTC_ADDR=&FE00
+CRTC_DATA=&FE01
+VIA_ORB=&FE40
+VIA_DDRB=&FE42
+VIA_DDRA=&FE43
+VIA_IFR=&FE4D
+VIA_IER=&FE4E
+ULA_PALETTE=&FE21
 ; ============================================================================
 ; FROGMAN — Game Code (Gcode)
 ; Loaded at &4800, encrypted on disc as 'Gcode'
@@ -43,9 +53,9 @@ ORG &4800
     LDX #&00
 .l_48AA
     LDA crtc_table,X
-    STA &FE00
+    STA CRTC_ADDR
     LDA crtc_table + 1,X
-    STA &FE01
+    STA CRTC_DATA
     INX
     INX
     CPX #&0E
@@ -54,7 +64,7 @@ ORG &4800
     STA l_48D3 + 2
     LDX #LO(oscli_load_level_g)
     LDY #HI(oscli_load_level_g)
-    JSR &FFF7    ; OSCLI
+    JSR OSCLI
     JMP l_48D8
 .oscli_load_level_g
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
@@ -63,7 +73,7 @@ ORG &4800
 .l_48D8
     LDX #LO(oscli_load_fastio)
     LDY #HI(oscli_load_fastio)
-    JSR &FFF7    ; OSCLI
+    JSR OSCLI
     JMP l_48F4
 .oscli_load_fastio
     EQUB &4C, &6F, &61, &64, &20, &46, &61, &73
@@ -74,7 +84,7 @@ ORG &4800
     STA l_490B + 2
     LDX #LO(oscli_load_level_t)
     LDY #HI(oscli_load_level_t)
-    JSR &FFF7    ; OSCLI
+    JSR OSCLI
     JMP l_4915
 .oscli_load_level_t
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
@@ -86,7 +96,7 @@ ORG &4800
     STA l_492C + 2
     LDX #LO(oscli_load_level_s)
     LDY #HI(oscli_load_level_s)
-    JSR &FFF7    ; OSCLI
+    JSR OSCLI
     JMP l_4935
 .oscli_load_level_s
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
@@ -96,7 +106,7 @@ ORG &4800
 .l_4935
     LDX #LO(oscli_load_tabs)
     LDY #HI(oscli_load_tabs)
-    JSR &FFF7    ; OSCLI
+    JSR OSCLI
     JMP game_init
 .oscli_load_tabs
     EQUB &4C, &6F, &61, &64, &20, &54, &61, &62
@@ -147,18 +157,18 @@ ORG &4800
 
     ; --- System VIA setup ---
     LDA #&FF
-    STA &FE42                   ; DDRB = all outputs
+    STA VIA_DDRB                   ; DDRB = all outputs
     LDA #&03
-    STA &FE40                   ; ORB = &03
+    STA VIA_ORB                   ; ORB = &03
     LDA #&0E
-    STA &FE40                   ; ORB = &0E
+    STA VIA_ORB                   ; ORB = &0E
     LDA #&0F
-    STA &FE40                   ; ORB = &0F
+    STA VIA_ORB                   ; ORB = &0F
     LDA #&7F
-    STA &FE43                   ; DDRA = bit 7 input, rest output
-    STA &FE4E                   ; IER: disable all interrupts
+    STA VIA_DDRA                   ; DDRA = bit 7 input, rest output
+    STA VIA_IER                   ; IER: disable all interrupts
     LDA #&82
-    STA &FE4E                   ; IER: enable CA1 (VSYNC) interrupt
+    STA VIA_IER                   ; IER: enable CA1 (VSYNC) interrupt
 
     ; --- Initial palette ---
     LDA #&0E
@@ -613,11 +623,11 @@ ORG &4800
     TYA : PHA                   ; Save Y
     SEI                         ; Disable interrupts during handler
 
-    LDA &FE4D                   ; Read System VIA IFR
+    LDA VIA_IFR                   ; Read System VIA IFR
     AND #&02                    ; Check CA1 (VSYNC) flag
     BEQ irq_exit                ; Not VSYNC — exit
 
-    STA &FE4D                   ; Acknowledge VSYNC interrupt
+    STA VIA_IFR                   ; Acknowledge VSYNC interrupt
 
     ; --- Update sprites (if not inhibited) ---
     LDA &23                     ; Sprite update inhibit flag
@@ -690,7 +700,7 @@ ORG &4800
     EOR #&07                    ; Invert physical colour bits
 .set_palette_ora
     ORA #&00                    ; OR with logical colour (patched)
-    STA &FE21                   ; Write to Video ULA palette register
+    STA ULA_PALETTE                   ; Write to Video ULA palette register
     RTS
 
 ; --- Movement, collision, scrolling helpers ---
@@ -1959,7 +1969,7 @@ ORG &4800
     JSR swap_0600_0d00
     LDX #LO(oscli_disc)
     LDY #HI(oscli_disc)
-    JSR &FFF7    ; OSCLI
+    JSR OSCLI
     JMP l_5665
 .oscli_disc
     EQUB &44, &49, &53, &43, &0D
@@ -1968,7 +1978,7 @@ ORG &4800
     STA l_567C + 2
     LDX #LO(oscli_load_level_m)
     LDY #HI(oscli_load_level_m)
-    JSR &FFF7    ; OSCLI
+    JSR OSCLI
     JMP l_5686
 .oscli_load_level_m
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
@@ -1994,7 +2004,7 @@ ORG &4800
     STA l_56BA + 2
     LDX #LO(oscli_load_level_t2)
     LDY #HI(oscli_load_level_t2)
-    JSR &FFF7    ; OSCLI
+    JSR OSCLI
     JMP l_56C4
 .oscli_load_level_t2
     EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
@@ -2004,7 +2014,7 @@ ORG &4800
 .l_56C4
     LDX #LO(oscli_load_tbar)
     LDY #HI(oscli_load_tbar)
-    JSR &FFF7    ; OSCLI
+    JSR OSCLI
     JMP l_56DD
 .oscli_load_tbar
     EQUB &4C, &6F, &61, &64, &20, &54, &62, &61
@@ -2016,14 +2026,14 @@ ORG &4800
     LDA #&4C
     STA &0205
     LDA #&7F
-    STA &FE4E
-    STA &FE43
+    STA VIA_IER
+    STA VIA_DDRA
     LDA #&82
-    STA &FE4E
+    STA VIA_IER
     LDA #&FF
-    STA &FE42
+    STA VIA_DDRB
     LDA #&03
-    STA &FE40
+    STA VIA_ORB
     JSR swap_0600_0d00
     LDA #&58
     STA l_572E + 2
