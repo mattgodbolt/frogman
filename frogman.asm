@@ -34,9 +34,14 @@ PUTFILE "extracted/Level1S",  "Level1S", &0300, &0300
 PUTFILE "extracted/Level1T",  "Level1T", &5D80, &5D80
 PUTFILE "extracted/Level2G",  "Level2G", &3700, &3700
 PUTFILE "extracted/Level2S",  "Level2S", &0300, &0300
+PUTFILE "extracted/Level1M",  "Level1M", &5800, &5800
 PUTFILE "extracted/Level2T",  "Level2T", &5D80, &5D80
+PUTFILE "extracted/Level2M",  "Level2M", &5800, &5800
 PUTFILE "extracted/Tabs",     "Tabs",    &0100, &0100
 PUTFILE "extracted/Tbar",     "Tbar",    &7800, &7800
 
 ; --- Boot loader ---
-PUTBASIC "boot.bas", "!Boot"
+; Ribbit is the tokenized BASIC program.
+; !Boot is a text file that chains it (boot option 3 = *EXEC !Boot).
+PUTBASIC "boot.bas", "Ribbit"
+PUTTEXT "bootcmd.txt", "!Boot", 0
