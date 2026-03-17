@@ -61,56 +61,54 @@ ORG &4800
     CPX #&0E
     BNE l_48AA
     LDA &26
-    STA l_48D3 + 2
+    STA oscli_level_g_num
     LDX #LO(oscli_load_level_g)
     LDY #HI(oscli_load_level_g)
     JSR OSCLI
     JMP l_48D8
 .oscli_load_level_g
-    EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
-.l_48D3
-    EQUB &65, &6C, &00, &47, &0D
+    EQUS "Load Level"
+.oscli_level_g_num
+    EQUB 0                      ; Patched with ASCII level number
+    EQUS "G", 13
 .l_48D8
     LDX #LO(oscli_load_fastio)
     LDY #HI(oscli_load_fastio)
     JSR OSCLI
     JMP l_48F4
 .oscli_load_fastio
-    EQUB &4C, &6F, &61, &64, &20, &46, &61, &73
-    EQUB &74, &49, &2F, &4F, &20, &35, &38, &30
-    EQUB &30, &0D
+    EQUS "Load FastI/O 5800", 13
 .l_48F4
     LDA &26
-    STA l_490B + 2
+    STA oscli_level_t_num
     LDX #LO(oscli_load_level_t)
     LDY #HI(oscli_load_level_t)
     JSR OSCLI
     JMP l_4915
 .oscli_load_level_t
-    EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
-.l_490B
-    EQUB &65, &6C, &00, &54, &20, &35, &44, &38
-    EQUB &30, &0D
+    EQUS "Load Level"
+.oscli_level_t_num
+    EQUB 0
+    EQUS "T 5D80", 13
 .l_4915
     LDA &26
-    STA l_492C + 2
+    STA oscli_level_s_num
     LDX #LO(oscli_load_level_s)
     LDY #HI(oscli_load_level_s)
     JSR OSCLI
     JMP l_4935
 .oscli_load_level_s
-    EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
-.l_492C
-    EQUB &65, &6C, &00, &53, &20, &33, &30, &30
-    EQUB &0D
+    EQUS "Load Level"
+.oscli_level_s_num
+    EQUB 0
+    EQUS "S 300", 13
 .l_4935
     LDX #LO(oscli_load_tabs)
     LDY #HI(oscli_load_tabs)
     JSR OSCLI
     JMP game_init
 .oscli_load_tabs
-    EQUB &4C, &6F, &61, &64, &20, &54, &61, &62
-    EQUB &73, &20, &31, &30, &30, &0D
+    EQUS "Load Tabs 100", 13
 
 ; --- Game initialisation — copy tables, set IRQ, init state ---
 .game_init
@@ -1972,19 +1970,19 @@ ORG &4800
     JSR OSCLI
     JMP l_5665
 .oscli_disc
-    EQUB &44, &49, &53, &43, &0D
+    EQUS "DISC", 13
 .l_5665
     LDA &26
-    STA l_567C + 2
+    STA oscli_level_m_num
     LDX #LO(oscli_load_level_m)
     LDY #HI(oscli_load_level_m)
     JSR OSCLI
     JMP l_5686
 .oscli_load_level_m
-    EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
-.l_567C
-    EQUB &65, &6C, &00, &4D, &20, &35, &38, &30
-    EQUB &30, &0D
+    EQUS "Load Level"
+.oscli_level_m_num
+    EQUB 0
+    EQUS "M 5800", 13
 .l_5686
     LDX #&00
     LDA #&68
@@ -2001,24 +1999,23 @@ ORG &4800
     INC l_5692 + 2
     BPL l_5692
     LDA &26
-    STA l_56BA + 2
+    STA oscli_level_t2_num
     LDX #LO(oscli_load_level_t2)
     LDY #HI(oscli_load_level_t2)
     JSR OSCLI
     JMP l_56C4
 .oscli_load_level_t2
-    EQUB &4C, &6F, &61, &64, &20, &4C, &65, &76
-.l_56BA
-    EQUB &65, &6C, &00, &54, &20, &36, &38, &30
-    EQUB &30, &0D
+    EQUS "Load Level"
+.oscli_level_t2_num
+    EQUB 0
+    EQUS "T 6800", 13
 .l_56C4
     LDX #LO(oscli_load_tbar)
     LDY #HI(oscli_load_tbar)
     JSR OSCLI
     JMP l_56DD
 .oscli_load_tbar
-    EQUB &4C, &6F, &61, &64, &20, &54, &62, &61
-    EQUB &72, &20, &37, &38, &30, &30, &0D
+    EQUS "Load Tbar 7800", 13
 .l_56DD
     SEI
     LDA #&A5
