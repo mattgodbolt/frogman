@@ -101,10 +101,6 @@ INCLUDE "constants.asm"
 .done
 }
 
-    ; --- Restore display ---
-    LDA #&01 : STA CRTC_ADDR    ; CRTC R1
-    LDA #&40 : STA CRTC_DATA    ; Horizontal displayed = 64 (normal)
-
     ; --- Restore VIA for keyboard ---
     LDA #&7F : STA VIA_DDRA
     LDA #&FF : STA VIA_DDRB
@@ -119,9 +115,19 @@ INCLUDE "constants.asm"
     BPL wait
 }
 
-    ; --- Blank display before loading ---
+    ; --- Clear screen memory and blank display ---
     LDA #&01 : STA CRTC_ADDR
-    LDA #&00 : STA CRTC_DATA
+    LDA #&00 : STA CRTC_DATA    ; Blank display
+{
+    LDA #&00
+    TAX
+.clear_src
+    STA &3000,X
+    DEX
+    BNE clear_src
+    INC clear_src + 2
+    BPL clear_src              ; Loop &3000-&7FFF
+}
 
     ; --- Load game files and start ---
     LDX #LO(oscli_load_gcode)
