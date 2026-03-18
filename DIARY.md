@@ -296,7 +296,19 @@ Added a simple level select prompt to boot.bas (MODE 7, "Level 1 or 2?").
 
 The `game_routines_2` mystery bytes (`&65 &03` at &4D18-&4D19) are confirmed as dead code: no JSR, JMP, or branch targets them, and they sit after an RTS. Likely a vestigial instruction left behind during development.
 
+## Entry 20: BBC Model B Compatibility
+
+Investigated whether the game could run on a BBC Model B (standard NMOS 6502) instead of the BBC Master (65C12). Found:
+
+- **No 65C02 instructions used** — the entire codebase is pure NMOS 6502. No STZ, PHX/PLX, BRA, TRB/TSB, INC A, or (zp) indirect modes.
+- **Same hardware** — System VIA, CRTC, Video ULA, SN76489 are identical between Model B and Master.
+
+Booted `frogman_rebuilt.ssd` on a BBC Model B (DFS 1.2) in jsbeeb. It works perfectly — level select, title screen, gameplay, movement, music, all correct. The frog hops, screens flip, items render, status bar updates.
+
+**The original game's Model B incompatibility was entirely due to the encrypted Loader**, not the game code. The Loader's 55-stage XOR decryption chain likely used Master-specific features (PAGE=&E00 giving more BASIC workspace, or Master-specific memory layout assumptions). By bypassing the encryption with our clean BASIC boot loader, the game just works on a Model B with no code changes needed.
+
+This is a nice side effect of the reverse engineering — the rebuilt disc runs on hardware the original never supported!
+
 ## What Remains
 
 - Full annotation of the setup code at &1100-&12FF
-- Port to BBC Model B — the original game requires a Master (PAGE=&E00, possibly sideways RAM for Level?M files). Investigate what would need to change: PAGE location, memory layout, any Master-specific hardware dependencies
