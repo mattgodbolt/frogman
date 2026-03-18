@@ -44,6 +44,12 @@ PUTFILE "extracted/Level2M",  "Level2M", &5800, &5800
 PUTFILE "extracted/Tabs",     "Tabs",    &0100, &0100
 PUTFILE "extracted/Tbar",     "Tbar",    &7800, &7800
 
+; --- Title screen ---
+; Data2 is the RLE-compressed title screen graphic.
+; Setup is the decompressor + SPACE key wait.
+PUTFILE "extracted/Data2",   "Data2",   &1300, &1300
+PUTFILE "Setup",             "Setup",   &0900, &0900
+
 ; --- Boot loader ---
 ; Ribbit is the tokenized BASIC program.
 ; !Boot is a text file that chains it (boot option 3 = *EXEC !Boot).
