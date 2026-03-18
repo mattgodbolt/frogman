@@ -196,7 +196,7 @@ ORG &4800
     JSR jmp_render_map                   ; engine: render_map
     PLA
     STA zp_sprite_inhibit       ; Restore sprite update inhibit
-    JSR draw_title                   ; Draw "FROGMAN BY MG RTW" title
+    JSR fade_in                   ; Draw "FROGMAN BY MG RTW" title
     LDA #&02                    ; Colour 2
     STA zp_text_colour
     LDA #&00
@@ -246,7 +246,7 @@ ORG &4800
 .wait_escape_release
     JSR read_key
     BMI wait_escape_release
-    JMP game_state_handlers
+    JMP handle_death
 .check_ground
     JSR get_tile_at_frog
     PHA
@@ -329,7 +329,7 @@ ORG &4800
     BCS is_item
     CMP #&12
     BNE check_below
-    JMP game_state_handlers
+    JMP handle_death
 .is_item
     JSR get_tile_type
     CMP #&09
@@ -1283,8 +1283,8 @@ ORG &4800
     CMP #&01
     BEQ apply_tile_effect
 
-; --- Game over, level complete, death, restart ---
-.game_state_handlers
+; --- Death animation and life check ---
+.handle_death
 {
     LDX #&00
 .sink_loop
@@ -1425,7 +1425,7 @@ ORG &4800
     JSR draw_digit
     RTS
 
-; --- Scrolling routines ---
+; --- Item pickup from adjacent tiles ---
 .use_item_slot
 {
     LDA zp_item_0,X
@@ -1497,7 +1497,7 @@ ORG &4800
     EQUB &00, &00, &00, &00, &00, &00, &00, &00
     EQUB &00, &00, &00, &00, &00, &00, &00, &00
 
-; --- Sprite management, keyboard reading ---
+; --- Item placement ---
 .place_item
     LDA zp_frog_row
     STA zp_tile_y
@@ -1560,7 +1560,7 @@ ORG &4800
 .found
     INC zp_item_0,X
     JSR draw_status
-    JSR silence_all
+    JSR palette_flash
     PLA
     RTS
 }
@@ -1573,7 +1573,7 @@ ORG &4800
     LDA #&00
     JSR set_tile_at_pos
     JSR tile_addr_setup    ; engine: tile_addr_setup
-    JSR silence_all
+    JSR palette_flash
     PLA
     RTS
 .drop_item
@@ -1681,7 +1681,7 @@ ORG &4800
 }
 .digit_mask_table
 
-; --- Palette and sprite data tables ---
+; --- Digit rendering mask table ---
     EQUB &00, &03, &0C, &0F, &30, &33, &3C, &3F
 .str_title
     EQUB &24, &25, &0F, &1B, &18, &10, &16, &0A
@@ -1745,7 +1745,7 @@ ORG &4800
     CPX #&02
     BNE check_items
     JSR draw_status
-    JSR draw_title
+    JSR fade_in
     JMP main_loop
 .restore
     LDA #&80
@@ -1757,7 +1757,7 @@ ORG &4800
     JSR jmp_setup_map    ; engine: setup_map_render
     JSR calc_scroll_pos
     JSR tile_addr_setup    ; engine: tile_addr_setup
-    JSR draw_title
+    JSR fade_in
     JMP main_loop
 }
 .calc_scroll_pos
@@ -1816,14 +1816,14 @@ ORG &4800
     BNE loop
     RTS
 }
-.draw_title
+.fade_in
 {
     LDX #&07
 .step
-    STX restore_x + 1
+    STX cmp_target + 1
     LDA palette_fade_table,X
-.restore_x
-    CMP #&00
+.cmp_target
+    CMP #&00                    ; Operand patched with X (target colour)
     BEQ skip
     TAY
     INY
@@ -1837,7 +1837,7 @@ ORG &4800
     JSR apply_palette
     LDA palette_fade_last
     CMP #&07
-    BNE draw_title
+    BNE fade_in
     RTS
 }
 .place_terminal
@@ -1952,13 +1952,13 @@ ORG &4800
     LDX #LO(oscli_load_level_m)
     LDY #HI(oscli_load_level_m)
     JSR OSCLI
-    JMP copy_sideways_ram
+    JMP relocate_map_data
 .oscli_load_level_m
     EQUS "Load Level"
 .oscli_level_m_num
     EQUB 0
     EQUS "M 5800", 13
-.copy_sideways_ram
+.relocate_map_data
 {
     LDX #&00
     LDA #&68
@@ -1995,9 +1995,9 @@ ORG &4800
     EQUS "Load Tbar 7800", 13
 .setup_irq
     SEI
-    LDA #&A5
+    LDA #LO(irq_handler)
     STA IRQ1V_LO
-    LDA #&4C
+    LDA #HI(irq_handler)
     STA IRQ1V_HI
     LDA #&7F
     STA VIA_IER
@@ -2054,7 +2054,7 @@ ORG &4800
     RTS
 
 ; === Swap &0600 and &0D00 ===
-; Swaps 256 bytes between the NMI handler area (&0600) and the
+; Swaps 256 bytes between the IRQ handler area (&0600) and the
 ; music/data block (&0D00). Called during init to place the right
 ; data in each location.
 
@@ -2090,10 +2090,11 @@ ORG &4800
     RTS
 }
 
-; === Silence All Sound ===
-; Sets palette entry 1 to black and silences the sound chip.
+; === Palette Flash ===
+; Flashes logical colour 0 briefly (physical colour 1 for 10 frames,
+; then black). Called after item collection/drop.
 
-.silence_all
+.palette_flash
     LDA #&00
     LDX #&01
     JSR set_palette
