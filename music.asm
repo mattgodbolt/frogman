@@ -63,18 +63,10 @@
     EQUB &34, &1E
     EQUB &FE, &FF              ; End of tune 1
 
-    ; Unused padding to page boundary before sound_state_block
+    ; Padding — everything from here to end of region is overwritten
+    ; by Level?T on load, so these are just Level 1's initial values.
     EQUB &DD, &07, &4F, &47
     EQUB &B2, &DA
-
-; --- Disc loading state block ---
-; This 128-byte block is encrypted on disc but decrypted at runtime
-; by the Loader. Its runtime purpose is unclear — no game code
-; references into it have been identified. The NMI disc handler
-; at &0600 (not part of this build) used four locations within it
-; during disc loading, but that code is only active during the
-; Loader's decryption phase.
-.data_block_1
     EQUB &35, &D7, &2D, &49, &04, &BC, &E5, &79
     EQUB &71, &90, &32, &E7, &91, &5D, &9E, &5A
     EQUB &41, &3A, &96, &48, &5E, &01, &EF, &C7
@@ -129,8 +121,7 @@
     EQUB &BC, &B8, &B4, &B0
     EQUB &FE, &FF              ; End of tune 2
 
-; --- Encrypted/compressed data block ---
-.sound_data_block_2  ; Encrypted on disc, decrypted at runtime; no code references into it have been identified
+    ; Level 1 channel 2-3 boundary data (overwritten by Level?T)
     EQUB &83, &BD, &17, &06, &4C, &E1, &D3, &F8
     EQUB &81, &3C, &7D, &C2, &6F, &85, &F6, &B2
     EQUB &A5, &B9, &2D, &B1, &E2, &8C, &0C, &03
@@ -175,7 +166,7 @@
     EQUB &20, &3C, &24, &3C
     EQUB &FE, &FF              ; End of tune 3
 
-    ; Trailing encrypted/data bytes
+    ; Trailing Level 1 data (overwritten by Level?T)
     EQUB &2E, &63, &45, &1E
     EQUB &06, &54, &10, &59
     EQUB &9F, &48, &C8, &29
