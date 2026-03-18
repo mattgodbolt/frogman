@@ -56,3 +56,24 @@ ORG &00
 .zp_level_char   SKIP 1         ; ASCII level number character ('1' or '2')
 .zp_temp_item    SKIP 1         ; Temporary: item tile being placed
 .zp_temp_type    SKIP 1         ; Temporary: item type being placed
+
+; --- Engine temporaries (used during sprite update) ---
+ORG &60
+.zp_move_ptr_lo  SKIP 1         ; Current movement data pointer low
+.zp_move_ptr_hi  SKIP 1         ; Current movement data pointer high
+.zp_spr_timer    SKIP 1         ; Sprite timer temporary
+.zp_spr_frame    SKIP 1         ; Sprite frame/direction temporary
+.zp_spr_speed    SKIP 1         ; Sprite speed temporary
+
+; --- Sprite state arrays (X-indexed, 4 sprites each) ---
+ORG &70
+.zp_spr_dir      SKIP 4         ; Sprite direction/speed (&70-&73)
+.zp_spr_subpix   SKIP 4         ; Sprite Y sub-pixel position (&74-&77)
+.zp_spr_anim_tmr SKIP 4         ; Sprite animation timer (&78-&7B)
+.zp_spr_move_lo  SKIP 4         ; Sprite movement ptr low (&7C-&7F)
+.zp_spr_move_hi  SKIP 4         ; Sprite movement ptr high (&80-&83)
+.zp_spr_move_idx SKIP 4         ; Sprite movement index (&84-&87)
+.zp_spr_subctr   SKIP 4         ; Sprite movement sub-counter (&88-&8B)
+.zp_spr_anim_idx SKIP 4         ; Sprite animation stream index (&8C-&8F)
+.zp_anim_ptr_lo  SKIP 1         ; Animation data pointer low (&90)
+.zp_anim_ptr_hi  SKIP 1         ; Animation data pointer high (&91)

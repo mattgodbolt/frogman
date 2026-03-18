@@ -460,21 +460,11 @@ ORG &4800
     STA zp_scroll_y
     STA zp_frog_row
     JSR jmp_setup_map    ; engine: setup_map_render
-    EQUB &20
-    EQUB &E9
-
-}
-; --- Helper routines called from main loop ---
-.game_routines_1
-    EQUB &0B
+    JSR tile_addr_setup  ; engine: tile_addr_setup
     JMP main_loop
+}
 .fall_step_table
-    ORA (&01,X)
-    ORA (&02,X)
-    EQUB &02
-    EQUB &02
-    EQUB &03
-    EQUB &04
+    EQUB &01, &01, &01, &02, &02, &02, &03, &04
 .fall_loop
 {
     LDX #&00
@@ -509,10 +499,7 @@ ORG &4800
     TAY
     INY
     TYA
-    ASL A
-    ASL A
-    ASL A
-    ASL A
+    ASL A : ASL A : ASL A : ASL A
     CLC
     ADC zp_frog_col
     TAY
@@ -548,19 +535,11 @@ ORG &4800
     RTS
 }
 .tile_type_table
-    BRK
-    BRK
-    BRK
-    EQUB &FF
-    EQUB &FF
-    BRK
-    BRK
-    BRK
-    EQUB &FF
-    EQUB &FF
-    EQUB &FF
-    BRK
-    BRK
+    EQUB &00, &00, &00
+    EQUB &FF, &FF
+    EQUB &00, &00, &00
+    EQUB &FF, &FF, &FF
+    EQUB &00, &00
 .get_tile_at_pos
 {
     LDA zp_tile_x
@@ -569,10 +548,7 @@ ORG &4800
     LDA zp_tile_y
     CMP #&08
     BCS out_of_bounds
-    ASL A
-    ASL A
-    ASL A
-    ASL A
+    ASL A : ASL A : ASL A : ASL A
     CLC
     ADC zp_tile_x
     TAY
@@ -585,10 +561,7 @@ ORG &4800
 .set_tile_at_pos
     PHA
     LDA zp_tile_y
-    ASL A
-    ASL A
-    ASL A
-    ASL A
+    ASL A : ASL A : ASL A : ASL A
     CLC
     ADC zp_tile_x
     TAY
@@ -596,8 +569,7 @@ ORG &4800
     STA (zp_map_src_lo),Y
     PHA
     LDA zp_tile_x
-    ASL A
-    ASL A
+    ASL A : ASL A
     STA zp_tile_x
     LDA zp_tile_y
     ASL A
@@ -706,8 +678,7 @@ ORG &4800
     RTS
 
 ; --- Movement, collision, scrolling helpers ---
-.game_routines_2
-    ADC zp_dst_hi
+    EQUB &65, &03                ; Unreachable padding bytes
 .wait_vsync
 {
     PHA
@@ -729,17 +700,13 @@ ORG &4800
     RTS
 .*update_frog_tile
     LDA zp_scroll_x
-    LSR A
-    LSR A
+    LSR A : LSR A
     STA zp_tile_x
     LDA zp_scroll_y
     BPL pos_y
     LDA #&00
 .pos_y
-    LSR A
-    LSR A
-    LSR A
-    LSR A
+    LSR A : LSR A : LSR A : LSR A
     STA zp_tile_y
     JSR draw_tile
     INC zp_tile_x
@@ -756,10 +723,7 @@ ORG &4800
     DEC zp_tile_x
 .draw_tile
     LDA zp_tile_y
-    ASL A
-    ASL A
-    ASL A
-    ASL A
+    ASL A : ASL A : ASL A : ASL A
     CLC
     ADC zp_map_src_lo
     STA map_read + 1
@@ -772,8 +736,7 @@ ORG &4800
     STA tile_idx + 1
     LDA zp_tile_x
     PHA
-    ASL A
-    ASL A
+    ASL A : ASL A
     STA zp_tile_x
     LDA zp_tile_y
     PHA
@@ -1215,16 +1178,12 @@ ORG &4800
     CMP #&07
     BEQ climb_animate
     LDA zp_frog_col
-    ASL A
-    ASL A
+    ASL A : ASL A
     STA zp_scroll_x
     LDY zp_frog_row
     INY
     TYA
-    ASL A
-    ASL A
-    ASL A
-    ASL A
+    ASL A : ASL A : ASL A : ASL A
     STA zp_scroll_y
     LDX #&00
 .climb_anim_loop
@@ -1241,8 +1200,7 @@ ORG &4800
     JMP scan_keys
 .climb_animate
     LDA zp_frog_col
-    ASL A
-    ASL A
+    ASL A : ASL A
     STA zp_tile_x
     LDA zp_frog_row
     ASL A
@@ -1687,14 +1645,8 @@ ORG &4800
 {
     STA zp_src_lo
     LDA #&00
-    ASL zp_src_lo
-    ROL A
-    ASL zp_src_lo
-    ROL A
-    ASL zp_src_lo
-    ROL A
-    ASL zp_src_lo
-    ROL A
+    ASL zp_src_lo : ROL A : ASL zp_src_lo : ROL A
+    ASL zp_src_lo : ROL A : ASL zp_src_lo : ROL A
     STA zp_src_hi
     CLC
     LDA zp_src_lo
@@ -1803,14 +1755,10 @@ ORG &4800
 .calc_scroll_pos
 {
     LDA zp_frog_col
-    ASL A
-    ASL A
+    ASL A : ASL A
     STA zp_scroll_x
     LDA zp_frog_row
-    ASL A
-    ASL A
-    ASL A
-    ASL A
+    ASL A : ASL A : ASL A : ASL A
     STA zp_scroll_y
     RTS
 }
@@ -1843,15 +1791,9 @@ ORG &4800
     JMP wait_frames
 }
 .palette_fade_table
-    BRK
-    BRK
-    BRK
-    BRK
-    BRK
-    BRK
-    BRK
+    EQUB &00, &00, &00, &00, &00, &00, &00
 .palette_fade_last
-    BRK
+    EQUB &00
 .apply_palette
 {
     LDY #&07

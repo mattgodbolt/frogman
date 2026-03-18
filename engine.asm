@@ -179,17 +179,17 @@ INCLUDE "tables.asm"
 
 .anim_frame_data
     AND #&7F                    ; Strip high bit
-    STA &63                     ; Store frame byte
+    STA zp_spr_frame                     ; Store frame byte
     INY
     LDA anim_timing_const                   ; Global animation timing constant
-    STA &62                     ; Frame duration
+    STA zp_spr_timer                     ; Frame duration
     JMP anim_apply
 
 .anim_set_loop
     TYA                         ; Save stream position
     STA sprite_anim_loop_y,X                 ; as loop-back point
     INY
-    LDA (&90),Y                 ; Read repeat count
+    LDA (zp_anim_ptr_lo),Y                 ; Read repeat count
     STA sprite_anim_loop_ctr,X
     INY
     JMP update_sprite_read
@@ -210,18 +210,18 @@ INCLUDE "tables.asm"
 ; Vertical: upper nibble >> 4. Horizontal: bits 3:2 >> 2.
 
 .anim_apply_data
-    LDA &63
+    LDA zp_spr_frame
     AND #&02                    ; Test bit 1
     BNE anim_set_horiz
 
-    LDA &63
+    LDA zp_spr_frame
     LSR A : LSR A : LSR A : LSR A
     STA sprite_vert_speed,X                 ; Vertical speed
     INY
     JMP update_sprite_read
 
 .anim_set_horiz
-    LDA &63
+    LDA zp_spr_frame
     LSR A : LSR A
     STA sprite_horiz_param,X                 ; Horizontal speed
     INY
@@ -238,38 +238,38 @@ INCLUDE "tables.asm"
     LDX #&01                    ; Start with object sprites
 
 .update_object_loop
-    LDA &78,X                   ; Animation timer
+    LDA zp_spr_anim_tmr,X                   ; Animation timer
     BNE update_object_next       ; Active — skip to next
 
     ; Timer expired — read new animation from stream
     LDA #&80
-    STA &90                     ; Animation ptr low = &80
+    STA zp_anim_ptr_lo                     ; Animation ptr low = &80
     LDA sprite_anim_src_hi,X                 ; Animation source high for sprite X
-    STA &91
-    LDY &8C,X                   ; Animation stream index
+    STA zp_anim_ptr_hi
+    LDY zp_spr_anim_idx,X                   ; Animation stream index
 
 ; --- Central animation dispatch ---
 ; All token parser branches return here to read the next token.
 
 .update_sprite_read
-    LDA (&90),Y                 ; Read token from animation stream
-    STA &63
+    LDA (zp_anim_ptr_lo),Y                 ; Read token from animation stream
+    STA zp_spr_frame
     AND #&01                    ; Test bit 0
     BNE anim_apply_data         ; Direction/speed change
 
-    LDA &63
+    LDA zp_spr_frame
     BMI parse_anim_token        ; Special token (&FC/&FA/&FE)
 
     ; Normal frame: read duration
     INY
-    LDA (&90),Y                 ; Read duration
-    STA &62
+    LDA (zp_anim_ptr_lo),Y                 ; Read duration
+    STA zp_spr_timer
     INY
 
 .anim_apply
-    STY &8C,X                   ; Update animation index
+    STY zp_spr_anim_idx,X                   ; Update animation index
     LDA sprite_vert_speed,X                 ; Vertical speed
-    STA &64
+    STA zp_spr_speed
     LDY sprite_horiz_param,X                 ; Horizontal speed
     JSR spawn_sprite            ; Set up sprite movement
 
@@ -282,61 +282,61 @@ INCLUDE "tables.asm"
     LDX #&00
 
 .update_player
-    LDA &70,X                   ; Sprite direction/speed
+    LDA zp_spr_dir,X                   ; Sprite direction/speed
     BEQ player_no_movement      ; Not moving
 
     LSR A                       ; Strip direction bit
     JSR set_tone                ; Set movement sound frequency
 
-    LDA &78,X                   ; Animation timer
+    LDA zp_spr_anim_tmr,X                   ; Animation timer
     BEQ player_chain            ; Timer expired
 
     ; Set sound volume based on sub-pixel Y position
-    LDA &74,X                   ; Y sub-pixel
+    LDA zp_spr_subpix,X                   ; Y sub-pixel
     LSR A : LSR A : LSR A : LSR A  ; -> table index
     JSR set_volume         ; Volume from position
 
     ; Load movement data pointers
-    LDY &84,X
-    LDA &7C,X : STA &60         ; Movement ptr low
-    LDA &80,X : STA &61         ; Movement ptr high
+    LDY zp_spr_move_idx,X
+    LDA zp_spr_move_lo,X : STA zp_move_ptr_lo         ; Movement ptr low
+    LDA zp_spr_move_hi,X : STA zp_move_ptr_hi         ; Movement ptr high
 
     ; Apply velocities
-    LDA (&60),Y : CLC : ADC &74,X : STA &74,X : INY   ; Y velocity
-    LDA (&60),Y : CLC : ADC &70,X : STA &70,X         ; X velocity
+    LDA (zp_move_ptr_lo),Y : CLC : ADC zp_spr_subpix,X : STA zp_spr_subpix,X : INY   ; Y velocity
+    LDA (zp_move_ptr_lo),Y : CLC : ADC zp_spr_dir,X : STA zp_spr_dir,X         ; X velocity
 
     ; Movement sub-counter
-    DEC &88,X
+    DEC zp_spr_subctr,X
     BPL movement_timer
 
     ; Sub-counter expired — advance to next step
     INY : INY
-    LDA (&60),Y : CLC : ADC &84,X : STA &84,X
+    LDA (zp_move_ptr_lo),Y : CLC : ADC zp_spr_move_idx,X : STA zp_spr_move_idx,X
     TAY
     INY : INY
-    LDA (&60),Y : STA &88,X    ; New sub-counter
+    LDA (zp_move_ptr_lo),Y : STA zp_spr_subctr,X    ; New sub-counter
 
 .movement_timer
-    LDA &78,X                   ; Check timer
+    LDA zp_spr_anim_tmr,X                   ; Check timer
     BEQ player_chain
-    DEC &78,X                   ; Decrement
+    DEC zp_spr_anim_tmr,X                   ; Decrement
     BNE player_chain            ; Still running
 
     ; Timer hit zero — chain to next sequence
     LDY #&00
-    LDA (&60),Y                 ; Chain flag
+    LDA (zp_move_ptr_lo),Y                 ; Chain flag
     BMI sprite_kill             ; Bit 7 set = end of chain
 
     PHA                         ; Save chain index
     INY
-    LDA (&60),Y                 ; New timer value
-    STA &78,X
+    LDA (zp_move_ptr_lo),Y                 ; New timer value
+    STA zp_spr_anim_tmr,X
     PLA
     ASL A                       ; x2 for word table
     TAY
-    LDA move_ptr_table,Y : STA &7C,X : STA &60   ; New movement ptr low
-    LDA move_ptr_table + 1,Y : STA &80,X : STA &61   ; New movement ptr high
-    LDA #&02 : STA &84,X       ; Reset index
+    LDA move_ptr_table,Y : STA zp_spr_move_lo,X : STA zp_move_ptr_lo   ; New movement ptr low
+    LDA move_ptr_table + 1,Y : STA zp_spr_move_hi,X : STA zp_move_ptr_hi   ; New movement ptr high
+    LDA #&02 : STA zp_spr_move_idx,X       ; Reset index
     JMP player_chain
 
 .sprite_kill
@@ -352,7 +352,7 @@ INCLUDE "tables.asm"
     RTS
 
 .player_no_movement
-    DEC &78,X                   ; Just decrement timer
+    DEC zp_spr_anim_tmr,X                   ; Just decrement timer
     JMP player_chain
 
 ; === SN76489 Sound Chip Write ===
@@ -417,17 +417,17 @@ INCLUDE "tables.asm"
 ; Entry: &62=timer, &63=direction, &64=speed, Y=sequence index, X=slot
 
 .spawn_sprite
-    LDA &62 : STA &78,X         ; Set animation timer
-    LDA &63 : ASL A : STA &70,X ; Direction x2
-    LDA &64                     ; Movement speed
+    LDA zp_spr_timer : STA zp_spr_anim_tmr,X         ; Set animation timer
+    LDA zp_spr_frame : ASL A : STA zp_spr_dir,X ; Direction x2
+    LDA zp_spr_speed                     ; Movement speed
     ASL A : ASL A : ASL A : ASL A  ; x16 for sub-pixel
-    STA &74,X                   ; Y sub-pixel position
+    STA zp_spr_subpix,X                   ; Y sub-pixel position
     TYA : ASL A : TAY           ; Sequence index x2
-    LDA move_ptr_table,Y : STA &7C,X : STA &60  ; Movement ptr low
-    LDA move_ptr_table + 1,Y : STA &80,X : STA &61  ; Movement ptr high
-    LDA #&02 : STA &84,X        ; Movement index (skip past chain terminator)
+    LDA move_ptr_table,Y : STA zp_spr_move_lo,X : STA zp_move_ptr_lo  ; Movement ptr low
+    LDA move_ptr_table + 1,Y : STA zp_spr_move_hi,X : STA zp_move_ptr_hi  ; Movement ptr high
+    LDA #&02 : STA zp_spr_move_idx,X        ; Movement index (skip past chain terminator)
     LDY #&04
-    LDA (&60),Y : STA &88,X     ; Initial sub-counter
+    LDA (zp_move_ptr_lo),Y : STA zp_spr_subctr,X     ; Initial sub-counter
     RTS
 
 ; === System VIA Port Config A ===
