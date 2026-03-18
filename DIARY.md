@@ -205,10 +205,31 @@ Engine cross-references now use jump table labels (`jmp_block_copy`, `jmp_render
 
 **Final count: 0 unnamed labels, 0 bare zero page references.**
 
+## Entry 16: Cleanup Pass
+
+Sprite state arrays (&70-&91) added to zero_page.asm with named variables (`zp_spr_dir`, `zp_spr_anim_tmr`, `zp_spr_move_lo/hi`, `zp_spr_subctr`, `zp_anim_ptr_lo/hi`, etc.) and all references in engine.asm updated.
+
+Fixed data misidentified as code: `BRK` instructions converted to `EQUB &00` in `tile_type_table` and `palette_fade_table`. `fall_step_table` data decoded from wrongly-disassembled `ORA (&01,X)` to correct `EQUB &01, &01, ...`. The `game_routines_1` code/data overlap resolved — was actually `JSR tile_addr_setup : JMP main_loop`.
+
+Compacted consecutive `ASL A`/`LSR A`/`ROL A` sequences onto single lines with `:` separators throughout game.asm.
+
+Scoped all remaining copy loops with local labels (no `.*` needed — self-modifying `label + 2` refs work fine inside the same scope).
+
+**Resolved TODOs:**
+- **&19 double-duty**: Not double-duty at all! `tile_addr_setup` uses `zp_direction` to select which column of tile graphics to render (0→&00, 1→&40, 2→&80, 3→&C0). The direction naturally indexes different visual orientations.
+- **`load_level_map`**: `JMP` to itself — an unreachable infinite loop, likely a crash trap. Renamed to `.halt`.
+- **`wait_frames` TODO**: Already identified, stale comment removed.
+
+**Unused labels found and handled:**
+- `str_power_off` — " POWER DEACTIVATED *" string, never displayed. Marked as unused (cut feature?).
+- `jmp_spawn_sprite` — jump table entry never called through the table. Marked unused.
+- `str_title_end`, `game_routines_3` — dead labels removed.
+
+**physics_table investigation:** Tested reciprocal, exponential, power curve, and linear formulas against all 128 values. No simple formula produces a byte-exact match — the irregular first-differences suggest original BBC BASIC fixed-point arithmetic or hand-tuning. Keeping hardcoded EQUB.
+
 ## What Remains
 
-- Data-region absolute addresses in copy loops (&5800, &0700, &0600, &0D00 etc.) — these are inherent to the memory map
 - Full annotation of the setup code at &1100-&12FF
-- Investigate &19 double-duty (direction vs level number)
 - The relationship between the three tunes and game states
-- Some data/code overlap areas still have misleading disassembly (e.g. `game_routines_1` EQUB data interpreted as instructions)
+- Some data/code overlap areas: `read_key` through `get_tile_type` is EQUB data that encodes multiple short routines — needs proper disassembly
+- `game_routines_2` padding bytes between `set_palette` and `wait_vsync`
