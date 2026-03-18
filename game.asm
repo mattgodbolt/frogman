@@ -351,17 +351,17 @@ ORG &4800
 }
 .scan_keys
 {
-    LDA #&42                    ; Z key
+    LDA #&42                    ; X key
     JSR read_key
     BPL not_down
     JMP move_down
 .not_down
-    LDA #&61                    ; Right cursor
+    LDA #&61                    ; Z key
     JSR read_key
     BPL not_right
     JMP move_right
 .not_right
-    LDA #&48                    ; Up cursor
+    LDA #&48                    ; : key
     JSR read_key
     BPL not_up
     JMP move_up_check
@@ -369,7 +369,7 @@ ORG &4800
     LDA zp_map_src_hi
     CMP #&03
     BEQ no_scroll
-    LDA #&20                    ; D key (scroll left)
+    LDA #&20                    ; f0 key (scroll left)
     JSR read_key
     BPL not_scroll_left
 .wait_left
@@ -379,7 +379,7 @@ ORG &4800
     LDX #&00
     JMP scroll_routines
 .not_scroll_left
-    LDA #&71                    ; F key (scroll right)
+    LDA #&71                    ; f1 key (scroll right)
     JSR read_key
     BPL no_scroll
 .wait_right
@@ -390,7 +390,7 @@ ORG &4800
     JMP scroll_routines
 .no_scroll
     JSR wait_vsync
-    LDA #&65                    ; J key (toggle sprites — debug?)
+    LDA #&65                    ; M key (toggle sprites — debug?)
     JSR read_key
     BPL done
     JSR jmp_init_game    ; engine: init_game
@@ -779,7 +779,7 @@ ORG &4800
     JSR get_tile_at_pos
     JSR check_tile_solid
     BEQ scroll_right
-    LDA #&68
+    LDA #&68                    ; / key (diagonal)
     JSR read_key
     BMI scroll_right
     INC zp_frog_col
@@ -904,7 +904,7 @@ ORG &4800
     JSR get_tile_at_pos
     JSR check_tile_solid
     BEQ scroll_left
-    LDA #&68
+    LDA #&68                    ; / key (diagonal)
     JSR read_key
     BMI scroll_left
     DEC zp_frog_col
