@@ -11,6 +11,10 @@
 ;   &0700, sets up IRQ, and enters the game loop.
 ; ============================================================================
 
+; --- Constants and zero page definitions ---
+INCLUDE "constants.asm"
+INCLUDE "zero_page.asm"
+
 ; --- Assemble engine code (tables + engine + music) ---
 INCLUDE "engine.asm"
 INCLUDE "music.asm"

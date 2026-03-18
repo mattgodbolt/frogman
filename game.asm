@@ -1,13 +1,3 @@
-OSCLI=&FFF7
-OSWRCH=&FFEE
-CRTC_ADDR=&FE00
-CRTC_DATA=&FE01
-VIA_ORB=&FE40
-VIA_DDRB=&FE42
-VIA_DDRA=&FE43
-VIA_IFR=&FE4D
-VIA_IER=&FE4E
-ULA_PALETTE=&FE21
 ; ============================================================================
 ; FROGMAN — Game Code (Gcode)
 ; Loaded at &4800, encrypted on disc as 'Gcode'
