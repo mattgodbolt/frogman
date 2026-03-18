@@ -33,7 +33,7 @@ INCLUDE "tables.asm"
 .jmp_calc_scrn_addr : JMP calc_screen_addr
 .jmp_setup_map      : JMP setup_map_render
 .jmp_render_map     : JMP render_map
-.jmp_spawn_sprite   : JMP spawn_sprite
+.jmp_spawn_sprite   : JMP spawn_sprite     ; (unused — called directly)
 .jmp_update_sprites : JMP update_sprites
 .jmp_init_game      : JMP init_game
 
@@ -414,7 +414,7 @@ INCLUDE "tables.asm"
 
 ; === Spawn Sprite ===
 ; Initializes a sprite slot with position, speed, and movement data.
-; Entry: &62=timer, &63=direction, &64=speed, Y=sequence index, X=slot
+; Entry: zp_spr_timer, zp_spr_frame, zp_spr_speed, Y=sequence index, X=slot
 
 .spawn_sprite
     LDA zp_spr_timer : STA zp_spr_anim_tmr,X         ; Set animation timer
@@ -513,11 +513,11 @@ INCLUDE "tables.asm"
     EQUB &00, &40, &80, &C0
 
 ; === Tile Address Setup ===
-; Patches the tile graphics base address into the tile renderer using
-; the current level number (&19) to select the tile set.
+; Patches the tile graphics base address into the tile renderer.
+; Uses direction to select tile column offset within the graphics page.
 
 .tile_addr_setup
-    LDY zp_direction                     ; TODO: investigate — &19 used as level number here but as direction flags in game code. Likely double-duty variable.
+    LDY zp_direction                     ; Direction selects tile column offset (0→&00, 1→&40, 2→&80, 3→&C0)
 .tile_addr_setup_y                       ; Entry with Y pre-set by caller
     LDA tile_col_lut,Y                 ; Level-indexed column offset
     STA tile_gfx_load + 1       ; Patch address low byte

@@ -108,22 +108,24 @@ ORG &4800
     STA OS_MODE
     LDA #&01
     STA OS_CHARS_ROW
+{
     LDX #&08
     LDY #&00
-.copy_engine_src
+.src
     LDA &5800,Y
-.copy_engine_dst
+.dst
     STA &0700,Y
     LDA #&00
-.clear_screen_addr
+.clr
     STA &5800,Y
     INY
-    BNE copy_engine_src
-    INC copy_engine_src + 2
-    INC copy_engine_dst + 2
-    INC clear_screen_addr + 2
+    BNE src
+    INC src + 2
+    INC dst + 2
+    INC clr + 2
     DEX
-    BNE copy_engine_src
+    BNE src
+}
     LDX #&FF
     TXS                         ; Reset stack pointer
     LDA #LO(irq_handler)
@@ -859,8 +861,7 @@ ORG &4800
     EQUB &8D, &4F, &FE, &2C
 
 ; --- More game logic — movement, collision response ---
-.game_routines_3
-    EQUB &4F
+    EQUB &4F                    ; Continuation of read_key
     EQUB &FE, &60
 .get_tile_type
     EQUB &8C, &7E, &4E, &38
@@ -1678,8 +1679,7 @@ ORG &4800
     EQUB &24, &25, &0F, &1B, &18, &10, &16, &0A
     EQUB &17, &25, &25, &0B, &22, &25, &16, &10
     EQUB &25, &24, &25, &1B, &1D, &20, &25, &24
-.str_title_end
-    EQUB &FF
+    EQUB &FF                    ; String terminator
 .str_press_space
     EQUB &24, &25, &19, &1B, &0E, &1C, &1C
     EQUB &25, &1C, &19, &0A, &0C, &0E, &25, &1D
@@ -1863,7 +1863,7 @@ ORG &4800
 .str_well_done                  ; "* LOGGED ON "
     EQUB &24, &25, &15, &18, &10, &10, &0E, &0D
     EQUB &25, &18, &17, &25, &FF
-.str_power_off                  ; " POWER DEACTIVATED *"
+.str_power_off                  ; " POWER DEACTIVATED *" (unused — cut feature?)
     EQUB &25, &19, &18, &20, &0E, &1B, &25, &0D
     EQUB &0E, &0A, &0C, &1D, &12, &1F, &0A, &1D
     EQUB &0E, &0D, &25, &24, &FF
@@ -1926,8 +1926,8 @@ ORG &4800
 }
 
 ; --- Level map loading from disc ---
-.load_level_map
-    JMP load_level_map
+.halt                           ; Unreachable infinite loop (unused crash trap)
+    JMP halt
 .load_level_data
     SEI
     JSR jmp_init_game    ; engine: init_game
@@ -1951,20 +1951,22 @@ ORG &4800
     EQUB 0
     EQUS "M 5800", 13
 .copy_sideways_ram
+{
     LDX #&00
     LDA #&68
-    STA copy_swr_src + 2
+    STA src + 2
     LDA #&1F
-    STA copy_swr_dst + 2
-.copy_swr_src
+    STA dst + 2
+.src
     LDA &6800,X
-.copy_swr_dst
+.dst
     STA &1F00,X
     INX
-    BNE copy_swr_src
-    INC copy_swr_dst + 2
-    INC copy_swr_src + 2
-    BPL copy_swr_src
+    BNE src
+    INC dst + 2
+    INC src + 2
+    BPL src
+}
     LDA zp_level_char
     STA oscli_level_t2_num
     LDX #LO(oscli_load_level_t2)
@@ -1999,39 +2001,40 @@ ORG &4800
     LDA #&03
     STA VIA_ORB
     JSR swap_0600_0d00
+{
     LDA #&58
-    STA copy_map_src + 2
+    STA map_src + 2
     LDA #&0F
-    STA copy_map_dst + 2
-.copy_level_data
+    STA map_dst + 2
     LDA #&0C
-    STA copy_tiles_dst + 2
+    STA tile_dst + 2
     LDA #&68
-    STA copy_tiles_src + 2
+    STA tile_src + 2
     LDX #&03
     LDY #&00
-.copy_tiles_src
+.tile_src
     LDA &6800,Y
-.copy_tiles_dst
+.tile_dst
     STA &0C80,Y
     INY
-    BNE copy_tiles_src
-    INC copy_tiles_src + 2
-    INC copy_tiles_dst + 2
+    BNE tile_src
+    INC tile_src + 2
+    INC tile_dst + 2
     DEX
-    BNE copy_tiles_src
+    BNE tile_src
     LDX #&00
-.copy_map_src
+.map_src
     LDA &5800,X
-.copy_map_dst
+.map_dst
     STA &0F00,X
     INX
-    BNE copy_map_src
-    INC copy_map_dst + 2
-    INC copy_map_src + 2
-    LDA copy_map_dst + 2
+    BNE map_src
+    INC map_dst + 2
+    INC map_src + 2
+    LDA map_dst + 2
     CMP #&1F
-    BNE copy_map_src
+    BNE map_src
+}
     LDA #&37
     STA zp_scroll_x
     LDA #&88
@@ -2048,8 +2051,9 @@ ORG &4800
 ; data in each location.
 
 .swap_0600_0d00
+{
     LDX #&00
-.swap_loop
+.loop
     LDA &0D00,X
     TAY
     LDA &0600,X
@@ -2057,23 +2061,26 @@ ORG &4800
     TYA
     STA &0600,X
     INX
-    BNE swap_loop
+    BNE loop
     RTS
+}
 
 ; === Clear Sprite State ===
 ; Zeros the animation timer (&78-&7B) and animation index (&8C-&8F)
 ; for all 4 sprite slots.
 
 .clear_sprite_state
+{
     LDA #&00
     TAX
-.clear_sprite_loop
-    STA &78,X                   ; Animation timer
-    STA &8C,X                   ; Animation index
+.loop
+    STA zp_spr_anim_tmr,X       ; Animation timer
+    STA zp_spr_anim_idx,X       ; Animation index
     INX
     CPX #&04
-    BNE clear_sprite_loop
+    BNE loop
     RTS
+}
 
 ; === Silence All Sound ===
 ; Sets palette entry 1 to black and silences the sound chip.
@@ -2083,7 +2090,7 @@ ORG &4800
     LDX #&01
     JSR set_palette
     LDX #&0A
-    JSR wait_frames                   ; TODO: identify this routine
+    JSR wait_frames
     LDA #&00
     TAX
     JMP set_palette
