@@ -4,7 +4,7 @@ A BBC Micro platformer written by Matt Godbolt and Richard Talbot-Watkins in Feb
 
 This repository contains a fully annotated, instruction-level disassembly of the game, suitable for reassembly with [BeebASM](https://github.com/stardot/beebasm).
 
-**[Play in your browser!](https://bbc.xania.org/?disc=https://raw.githubusercontent.com/mattgodbolt/frogman/classic/frogman_rebuilt.ssd&autoboot)**
+**Play in your browser!** [Classic](https://bbc.xania.org/?disc=https://raw.githubusercontent.com/mattgodbolt/frogman/classic/frogman_rebuilt.ssd&autoboot) | [Latest](https://bbc.xania.org/?disc=https://raw.githubusercontent.com/mattgodbolt/frogman/main/frogman_rebuilt.ssd&autoboot)
 
 ## The Game
 
