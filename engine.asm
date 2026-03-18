@@ -357,17 +357,17 @@ INCLUDE "tables.asm"
 
 ; === SN76489 Sound Chip Write ===
 ; Writes a byte to the SN76489 via System VIA.
-; &FE41 = System VIA ORA (data bus to sound chip).
-; &FE40 = System VIA ORB, bit 3 = sound chip /WE (active low).
+; VIA_ORA = data bus to sound chip.
+; VIA_ORB bit 3 = sound chip /WE (active low).
 ; Writing &00 asserts WE, &08 deasserts it.
 
 .sn76489_write
-    STA &FE41                   ; Data byte -> System VIA port A (sound chip bus)
+    STA VIA_ORA                   ; Data byte -> System VIA port A (sound chip bus)
     LDA #&00
-    STA &FE40                   ; System VIA ORB: bit 3 low = assert /WE
+    STA VIA_ORB                   ; System VIA ORB: bit 3 low = assert /WE
     NOP : NOP : NOP : NOP       ; Wait for SN76489 timing (~4us)
     LDA #&08
-    STA &FE40                   ; System VIA ORB: bit 3 high = deassert /WE
+    STA VIA_ORB                   ; System VIA ORB: bit 3 high = deassert /WE
     RTS
 
 ; === Set Tone ===
@@ -432,21 +432,21 @@ INCLUDE "tables.asm"
 
 ; === System VIA Port Config A ===
 ; Configures System VIA ports for sound output.
-; &FE40 = ORB, &FE42 = DDRB, &FE43 = DDRA.
+; VIA_ORB, VIA_DDRB, VIA_DDRA.
 
 .via_config_a
-    LDA #&0B : STA &FE40        ; ORB = &0B: bit 3 high = sound /WE deasserted
-    LDA #&FF : STA &FE43        ; DDRA = &FF: all port A bits output
-    LDA #&FF : STA &FE42        ; DDRB = &FF: all port B bits output
+    LDA #&0B : STA VIA_ORB        ; ORB = &0B: bit 3 high = sound /WE deasserted
+    LDA #&FF : STA VIA_DDRA        ; DDRA = &FF: all port A bits output
+    LDA #&FF : STA VIA_DDRB        ; DDRB = &FF: all port B bits output
     RTS
 
 ; === System VIA Port Config B ===
 ; Reconfigures System VIA ports (different DDR settings).
 
 .via_config_b
-    LDA #&03 : STA &FE40        ; ORB = &03: bit 3 low = sound /WE asserted
-    LDA #&7F : STA &FE43        ; DDRA = &7F: bit 7 input, rest output
-    LDA #&FF : STA &FE42        ; DDRB = &FF: all port B bits output
+    LDA #&03 : STA VIA_ORB        ; ORB = &03: bit 3 low = sound /WE asserted
+    LDA #&7F : STA VIA_DDRA        ; DDRA = &7F: bit 7 input, rest output
+    LDA #&FF : STA VIA_DDRB        ; DDRB = &FF: all port B bits output
     RTS
 
 ; === Movement Data Pointer Table ===
@@ -518,6 +518,7 @@ INCLUDE "tables.asm"
 
 .tile_addr_setup
     LDY zp_direction                     ; TODO: investigate — &19 used as level number here but as direction flags in game code. Likely double-duty variable.
+.tile_addr_setup_y                       ; Entry with Y pre-set by caller
     LDA tile_col_lut,Y                 ; Level-indexed column offset
     STA tile_gfx_load + 1       ; Patch address low byte
     LDA #&37                    ; Tile graphics at &3700
@@ -525,6 +526,7 @@ INCLUDE "tables.asm"
     BNE tile_render             ; Always branches (A=&37)
 
     ; Alternative entry: caller provides custom tile address in zp_src_lo/hi
+.tile_addr_custom
     LDA zp_src_lo
     STA tile_gfx_load + 1
     LDA zp_src_hi
