@@ -684,8 +684,7 @@ ORG &4800
     STA ULA_PALETTE                   ; Write to Video ULA palette register
     RTS
 
-; --- Movement, collision, scrolling helpers ---
-    EQUB &65, &03                ; Unreachable padding bytes
+    EQUB &65, &03                ; Dead code (unreachable after RTS)
 .wait_vsync
 {
     PHA

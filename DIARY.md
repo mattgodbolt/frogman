@@ -288,6 +288,15 @@ Renamed throughout:
 
 The M key toggles music (not "sprite display" as previously thought) — it sets `zp_music_inhibit` which prevents the IRQ handler from calling `update_sound`.
 
+## Entry 19: Music and Remaining Cleanup
+
+Documented how Level?T (640 bytes at &5D80) maps to &0C80-&0EFF after the engine copy, overwriting all three sound channel data streams. Each level has completely different music — no channels shared.
+
+Added a simple level select prompt to boot.bas (MODE 7, "Level 1 or 2?").
+
+The `game_routines_2` mystery bytes (`&65 &03` at &4D18-&4D19) are confirmed as dead code: no JSR, JMP, or branch targets them, and they sit after an RTS. Likely a vestigial instruction left behind during development.
+
 ## What Remains
 
+- Full annotation of the setup code at &1100-&12FF
 - Port to BBC Model B — the original game requires a Master (PAGE=&E00, possibly sideways RAM for Level?M files). Investigate what would need to change: PAGE location, memory layout, any Master-specific hardware dependencies
