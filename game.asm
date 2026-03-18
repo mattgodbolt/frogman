@@ -129,9 +129,9 @@ ORG &4800
     LDX #&FF
     TXS                         ; Reset stack pointer
     LDA #LO(irq_handler)
-    STA IRQ1V_LO                   ; IRQ1V low = &A5
+    STA IRQ1V_LO                   ; Point IRQ1V to our handler
     LDA #HI(irq_handler)
-    STA IRQ1V_HI                   ; IRQ1V high = &4C
+    STA IRQ1V_HI
 
     ; --- Zero page initialisation ---
     LDA #&00
@@ -186,7 +186,7 @@ ORG &4800
     STA zp_item_1               ; Clear item slot 1
     LDA #&09
     STA zp_lives                ; Lives = 9
-    JSR fade_out                   ; Initialise score display
+    JSR fade_out                   ; Fade palette to black
     JSR load_level_data                   ; Load level map from disc
     JSR draw_status                   ; Draw status bar
     LDA #&00
@@ -197,16 +197,16 @@ ORG &4800
     PLA
     STA zp_sprite_inhibit       ; Restore sprite update inhibit
     JSR draw_title                   ; Draw "FROGMAN BY MG RTW" title
-    LDA #&02                    ; Row 2
+    LDA #&02                    ; Colour 2
     STA zp_text_colour
     LDA #&00
-    STA zp_tile_y                     ; Tile Y = 0
+    STA zp_tile_y
     LDA #&08
-    STA zp_tile_x                     ; Tile X = 8
-    LDX #LO(str_title)                    ; String pointer low
-    LDY #HI(str_title)                    ; String pointer high (&5456)
-    JSR draw_string                   ; Draw string: "FROGMAN BY MG RTW"
-    LDA #&07                    ; Row 7
+    STA zp_tile_x
+    LDX #LO(str_title)
+    LDY #HI(str_title)
+    JSR draw_string                   ; "FROGMAN BY MG RTW"
+    LDA #&07                    ; Colour 7
     STA zp_text_colour
     LDA #&01
     STA zp_tile_y                     ; Tile Y = 1
@@ -215,7 +215,7 @@ ORG &4800
     LDX #LO(str_press_space)                    ; String pointer low
     LDY #HI(str_press_space)                    ; String pointer high (&546F)
     JSR draw_string                   ; Draw string: "PRESS SPACE TO START"
-    LDA #&62
+    LDA #&62                    ; SPACE key
 .wait_space
     JSR read_key
     BPL wait_space
@@ -240,7 +240,7 @@ ORG &4800
 ; --- Main game loop — keyboard, collision, movement ---
 .main_loop
     JSR tile_addr_setup    ; engine: tile_addr_setup
-    LDA #&70
+    LDA #&70                    ; ESCAPE key
     JSR read_key
     BPL check_ground
 .wait_escape_release
@@ -351,17 +351,17 @@ ORG &4800
 }
 .scan_keys
 {
-    LDA #&42
+    LDA #&42                    ; Z key
     JSR read_key
     BPL not_down
     JMP move_down
 .not_down
-    LDA #&61
+    LDA #&61                    ; Right cursor
     JSR read_key
     BPL not_right
     JMP move_right
 .not_right
-    LDA #&48
+    LDA #&48                    ; Up cursor
     JSR read_key
     BPL not_up
     JMP move_up_check
@@ -369,7 +369,7 @@ ORG &4800
     LDA zp_map_src_hi
     CMP #&03
     BEQ no_scroll
-    LDA #&20
+    LDA #&20                    ; D key (scroll left)
     JSR read_key
     BPL not_scroll_left
 .wait_left
@@ -379,7 +379,7 @@ ORG &4800
     LDX #&00
     JMP scroll_routines
 .not_scroll_left
-    LDA #&71
+    LDA #&71                    ; F key (scroll right)
     JSR read_key
     BPL no_scroll
 .wait_right
@@ -390,7 +390,7 @@ ORG &4800
     JMP scroll_routines
 .no_scroll
     JSR wait_vsync
-    LDA #&65
+    LDA #&65                    ; J key (toggle sprites — debug?)
     JSR read_key
     BPL done
     JSR jmp_init_game    ; engine: init_game
@@ -580,9 +580,14 @@ ORG &4800
     JMP jmp_block_copy    ; engine: block_copy
 .crtc_table
 
-; --- CRTC register table (data) ---
-    EQUB &01, &40, &02, &5A, &06, &14, &07, &1D
-    EQUB &0A, &20, &0C, &0B, &0D, &00
+; --- CRTC register table (register, value pairs) ---
+    EQUB &01, &40               ; R1:  Horizontal displayed = 64 characters
+    EQUB &02, &5A               ; R2:  H sync position = 90
+    EQUB &06, &14               ; R6:  Vertical displayed = 20 rows
+    EQUB &07, &1D               ; R7:  V sync position = 29
+    EQUB &0A, &20               ; R10: Cursor start = off (bit 5 set)
+    EQUB &0C, &0B               ; R12: Screen start high = &0B (display at &5800)
+    EQUB &0D, &00               ; R13: Screen start low = &00
 
 ; === VSYNC IRQ Handler ===
 ; Called via IRQ1V on every vertical sync (~50Hz).
@@ -592,7 +597,7 @@ ORG &4800
 
 .irq_handler
 {
-    LDA &FC                     ; Restore A from MOS save location
+    LDA &FC                     ; Load A saved by MOS IRQ dispatcher
     PHA                         ; Save A
     TXA : PHA                   ; Save X
     TYA : PHA                   ; Save Y
@@ -858,13 +863,15 @@ ORG &4800
 .scroll_step_table_4
     EQUB &FE, &FF, &01, &02
 .read_key
-    EQUB &8D, &4F, &FE, &2C
+    STA VIA_ORA_NH              ; Write key scan code to VIA ORA (no handshake)
+    BIT VIA_ORA_NH              ; Read back — bit 7 (N flag) set if key pressed
+    RTS
 
-; --- More game logic — movement, collision response ---
-    EQUB &4F                    ; Continuation of read_key
-    EQUB &FE, &60
+; --- Tile type lookup ---
+; Returns tile type for tiles >= &20. Saves/restores Y via self-mod.
 .get_tile_type
-    EQUB &8C, &7E, &4E, &38
+    STY get_tile_type_ry + 1    ; Save Y (self-modifying LDY operand)
+    SEC
     SBC #&20
     ASL A
     TAY
@@ -873,7 +880,8 @@ ORG &4800
     STA zp_tile_data
     DEY
     LDA &4000,Y
-    LDY #&00
+.get_tile_type_ry
+    LDY #&00                    ; Restore Y (operand patched by STY above)
     RTS
 .move_right
 {

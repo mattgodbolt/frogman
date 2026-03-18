@@ -13,6 +13,7 @@ VIA_ORB      = &FE40           ; Output Register B
 VIA_ORA      = &FE41           ; Output Register A
 VIA_DDRB     = &FE42           ; Data Direction Register B
 VIA_DDRA     = &FE43           ; Data Direction Register A
+VIA_ORA_NH   = &FE4F           ; Output Register A (no handshake)
 VIA_IFR      = &FE4D           ; Interrupt Flag Register
 VIA_IER      = &FE4E           ; Interrupt Enable Register
 

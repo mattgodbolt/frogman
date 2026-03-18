@@ -109,7 +109,7 @@ INCLUDE "tables.asm"
 ; Map data is based at &0F00.
 
 .setup_map_render
-    LDA zp_map_scroll_x                     ; Scroll position low
+    LDA zp_map_scroll_x                     ; Will become high byte bits after /2
     STA zp_map_src_hi
     LDA #&00
     LSR zp_map_src_hi                     ; Divide by 2
@@ -197,12 +197,12 @@ INCLUDE "tables.asm"
 .anim_loop_back
     STY anim_saved_y + 1        ; Save current Y (self-modifying immediate)
     LDY sprite_anim_loop_y,X    ; Restore loop-back position
-    INY : INY                   ; Advance past loop body
+    INY : INY                   ; Skip past &FC marker and count byte
     DEC sprite_anim_loop_ctr,X       ; Decrement repeat counter
     BNE update_sprite_read      ; Loop again if count > 0
 .anim_saved_y
-    LDY #&00                    ; Count exhausted (operand patched by STY above)
-    INY                         ; Y = 1
+    LDY #&00                    ; Count exhausted — restore Y to &FA token position (patched)
+    INY                         ; Advance past &FA token
     JMP update_sprite_read
 
 ; --- Direction/speed decoding ---
@@ -233,7 +233,7 @@ INCLUDE "tables.asm"
 ; Sprite 0: physics-driven movement (player)
 
 .update_sprites
-    JSR via_config_a           ; Refresh timer
+    JSR via_config_a           ; Configure VIA for sound output
 
     LDX #&01                    ; Start with object sprites
 
@@ -336,7 +336,7 @@ INCLUDE "tables.asm"
     TAY
     LDA move_ptr_table,Y : STA zp_spr_move_lo,X : STA zp_move_ptr_lo   ; New movement ptr low
     LDA move_ptr_table + 1,Y : STA zp_spr_move_hi,X : STA zp_move_ptr_hi   ; New movement ptr high
-    LDA #&02 : STA zp_spr_move_idx,X       ; Reset index
+    LDA #&02 : STA zp_spr_move_idx,X       ; Reset index (skip past 2-byte chain terminator)
     JMP player_chain
 
 .sprite_kill
@@ -348,7 +348,7 @@ INCLUDE "tables.asm"
     CPX #&04                    ; All sprites done?
     BNE update_player
 
-    JSR via_config_b           ; Refresh timer
+    JSR via_config_b           ; Restore VIA to normal configuration
     RTS
 
 .player_no_movement
@@ -426,7 +426,7 @@ INCLUDE "tables.asm"
     LDA move_ptr_table,Y : STA zp_spr_move_lo,X : STA zp_move_ptr_lo  ; Movement ptr low
     LDA move_ptr_table + 1,Y : STA zp_spr_move_hi,X : STA zp_move_ptr_hi  ; Movement ptr high
     LDA #&02 : STA zp_spr_move_idx,X        ; Movement index (skip past chain terminator)
-    LDY #&04
+    LDY #&04                    ; Offset 4 = sub-counter in movement sequence
     LDA (zp_move_ptr_lo),Y : STA zp_spr_subctr,X     ; Initial sub-counter
     RTS
 
@@ -441,11 +441,12 @@ INCLUDE "tables.asm"
     RTS
 
 ; === System VIA Port Config B ===
-; Reconfigures System VIA ports (different DDR settings).
+; Restores System VIA to normal BBC Micro configuration after sound output.
+; DDRA bit 7 input enables keyboard scanning.
 
 .via_config_b
-    LDA #&03 : STA VIA_ORB        ; ORB = &03: bit 3 low = sound /WE asserted
-    LDA #&7F : STA VIA_DDRA        ; DDRA = &7F: bit 7 input, rest output
+    LDA #&03 : STA VIA_ORB        ; ORB = &03: restore normal port B state
+    LDA #&7F : STA VIA_DDRA        ; DDRA = &7F: bit 7 input (keyboard), rest output
     LDA #&FF : STA VIA_DDRB        ; DDRB = &FF: all port B bits output
     RTS
 
@@ -578,7 +579,7 @@ INCLUDE "tables.asm"
 .tile_inner
     LDA (zp_map_ptr_lo),Y                 ; Read screen byte
     AND #&3F                    ; Mask lower 6 bits
-    STA tile_mask + 1           ; Self-mod: AND operand for mask below
+    STA tile_mask + 1           ; Self-mod: patches mask table index in AND address below
 .tile_gfx_load
     LDA &3700,X                 ; Read tile graphics (address is patched!)
 .tile_mask
