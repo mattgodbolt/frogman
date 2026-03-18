@@ -19,6 +19,10 @@ ORG &0900
 INCLUDE "constants.asm"
 
 .setup_entry
+    ; --- Blank display before mode change ---
+    LDA #&01 : STA CRTC_ADDR    ; CRTC R1
+    LDA #&00 : STA CRTC_DATA    ; Horizontal displayed = 0 (blank)
+
     ; --- MODE 2, cursor off ---
     LDA #&16 : JSR OSWRCH       ; VDU 22
     LDA #&02 : JSR OSWRCH       ; Mode 2
@@ -97,6 +101,10 @@ INCLUDE "constants.asm"
 .done
 }
 
+    ; --- Restore display ---
+    LDA #&01 : STA CRTC_ADDR    ; CRTC R1
+    LDA #&40 : STA CRTC_DATA    ; Horizontal displayed = 64 (normal)
+
     ; --- Restore VIA for keyboard ---
     LDA #&7F : STA VIA_DDRA
     LDA #&FF : STA VIA_DDRB
@@ -110,6 +118,10 @@ INCLUDE "constants.asm"
     BIT VIA_ORA_NH
     BPL wait
 }
+
+    ; --- Blank display before loading ---
+    LDA #&01 : STA CRTC_ADDR
+    LDA #&00 : STA CRTC_DATA
 
     ; --- Load game files and start ---
     LDX #LO(oscli_load_gcode)
