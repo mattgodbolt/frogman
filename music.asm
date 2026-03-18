@@ -12,16 +12,20 @@
 ; The music data is referenced by the IRQ handler via self-modifying
 ; pointers at &0D3D/&0D3E.
 ;
-; There are three tunes interleaved with encrypted blocks:
-;   Tune 1 (followed by padding)
-;   Tune 2 (encrypted block precedes)
-;   Tune 3 (encrypted block precedes)
+; Sound channel data sources (all level-specific):
+;   Channel 1 → page &0C (&0C80)
+;   Channel 2 → page &0D (&0D80)
+;   Channel 3 → page &0E (&0E80)
+;
+; Level?T loads at &5D80 (640 bytes). After the engine copy
+; (&5800→&0700), this maps to &0C80-&0EFF — overwriting ALL
+; channel data. Each level has completely different music.
 ; ============================================================================
 
 ; Music data begins immediately after the tile renderer's RTS.
 ; No ORG needed — this continues from wherever engine.asm left off.
 
-; --- Tune 1: Tune 1 (purpose unconfirmed) ---
+; --- Channel 1 data (overwritten by Level?T on load) ---
 .music_data
     EQUB &4F, &56, &20, &52     ; "OV R" — ASCII remnant or data header
     EQUB &30, &2C, &07, &F1     ; Tune header / initial note data
@@ -88,7 +92,7 @@
     EQUB &D4, &29, &1F, &56, &73, &D1, &92, &59
     EQUB &A4, &58, &DE, &01, &04, &6A, &65, &65
 
-; --- Tune 2: Tune 2 (purpose unconfirmed) ---
+; --- Level 1 channel 2 data (overwritten by Level?T on load) ---
 .music_data_2
     EQUB &07, &E1
     ; Bass line melody
@@ -144,7 +148,7 @@
     EQUB &94, &9D, &DC, &02, &41, &0A, &B7, &48
     EQUB &6F, &90, &FF, &54, &00, &3D, &79, &53
 
-; --- Tune 3: Tune 3 (purpose unconfirmed) ---
+; --- Level 1 channel 3 data (overwritten by Level?T on load) ---
 .music_data_3
     EQUB &07, &D1
     ; Short melodic sequence
