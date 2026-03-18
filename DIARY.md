@@ -269,4 +269,4 @@ The game uses flip-screen transitions, not smooth scrolling. This was a fundamen
 - Full annotation of the setup code at &1100-&12FF
 - The relationship between the three tunes and game states
 - `game_routines_2` padding bytes between `set_palette` and `wait_vsync`
-- Third review agent (game.asm lines 900+) results still pending
+- Port to BBC Model B — the original game requires a Master (PAGE=&E00, possibly sideways RAM for Level?M files). Investigate what would need to change: PAGE location, memory layout, any Master-specific hardware dependencies
