@@ -369,25 +369,25 @@ ORG &4800
     LDA zp_map_src_hi
     CMP #&03
     BEQ no_scroll
-    LDA #&20                    ; f0 key (scroll left)
+    LDA #&20                    ; f0 key (use item slot 0)
     JSR read_key
-    BPL not_scroll_left
-.wait_left
+    BPL not_f0
+.wait_f0
     JSR wait_vsync
     JSR read_key
-    BMI wait_left
+    BMI wait_f0
     LDX #&00
-    JMP scroll_routines
-.not_scroll_left
-    LDA #&71                    ; f1 key (scroll right)
+    JMP use_item_slot
+.not_f0
+    LDA #&71                    ; f1 key (use item slot 1)
     JSR read_key
     BPL no_scroll
-.wait_right
+.wait_f1
     JSR wait_vsync
     JSR read_key
-    BMI wait_right
+    BMI wait_f1
     LDX #&01
-    JMP scroll_routines
+    JMP use_item_slot
 .no_scroll
     JSR wait_vsync
     LDA #&65                    ; M key (toggle sprites — debug?)
@@ -778,10 +778,10 @@ ORG &4800
     INC zp_tile_x
     JSR get_tile_at_pos
     JSR check_tile_solid
-    BEQ scroll_right
-    LDA #&68                    ; / key (diagonal)
+    BEQ short_hop_right
+    LDA #&68                    ; / key (short hop)
     JSR read_key
-    BMI scroll_right
+    BMI short_hop_right
     INC zp_frog_col
     LDA zp_frog_col
     CMP #&0F
@@ -820,7 +820,7 @@ ORG &4800
     JSR wait_vsync
     JSR update_frog_tile
     JMP main_loop
-.*scroll_right
+.*short_hop_right
     LDX #&00
     INC zp_frog_col
     LDA zp_frog_col
@@ -903,10 +903,10 @@ ORG &4800
     DEC zp_tile_x
     JSR get_tile_at_pos
     JSR check_tile_solid
-    BEQ scroll_left
-    LDA #&68                    ; / key (diagonal)
+    BEQ short_hop_left
+    LDA #&68                    ; / key (short hop)
     JSR read_key
-    BMI scroll_left
+    BMI short_hop_left
     DEC zp_frog_col
     BEQ wrap_left
     BPL anim_8
@@ -945,7 +945,7 @@ ORG &4800
     JSR wait_vsync
     JSR update_frog_tile
     JMP main_loop
-.*scroll_left
+.*short_hop_left
     LDX #&00
     DEC zp_frog_col
     BPL anim_4
@@ -1095,7 +1095,7 @@ ORG &4800
     JSR get_tile_at_pos
     JSR check_tile_solid
     BEQ climb_done
-    JMP scroll_left
+    JMP short_hop_left
 .climb_done
     JMP main_loop
 .check_ladder
@@ -1172,7 +1172,7 @@ ORG &4800
     BNE climb_right_scroll
     JMP climb_done
 .climb_right_scroll
-    JMP scroll_right
+    JMP short_hop_right
 .climb_ladder
     JSR update_frog_tile
 .climb_next_row
@@ -1426,12 +1426,12 @@ ORG &4800
     RTS
 
 ; --- Scrolling routines ---
-.scroll_routines
+.use_item_slot
 {
     LDA zp_item_0,X
     STX item_slot_select + 1
     BEQ no_item
-    JMP game_routines_4
+    JMP place_item
 .no_item
     LDA zp_frog_col
     STA zp_tile_x
@@ -1498,7 +1498,7 @@ ORG &4800
     EQUB &00, &00, &00, &00, &00, &00, &00, &00
 
 ; --- Sprite management, keyboard reading ---
-.game_routines_4
+.place_item
     LDA zp_frog_row
     STA zp_tile_y
     LDA zp_frog_col

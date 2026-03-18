@@ -24,14 +24,14 @@ ORG &00
 .zp_colour_phase SKIP 1         ; Colour cycle phase (0-7)
 .zp_palette_idx  SKIP 1         ; Palette entry being animated (8-11)
 .zp_frame_ctr    SKIP 1         ; Frame sub-counter
-.zp_scroll_x     SKIP 1         ; Scroll X position (pixels)
-.zp_scroll_y     SKIP 1         ; Scroll Y position (pixels)
+.zp_scroll_x     SKIP 1         ; Frog pixel X within current screen
+.zp_scroll_y     SKIP 1         ; Frog pixel Y within current screen
 
 ; --- Frog position ---
-.zp_frog_col     SKIP 1         ; Frog column in map
-.zp_frog_row     SKIP 1         ; Frog row in map
-.zp_map_scroll_x SKIP 1         ; Map scroll X (coarse tiles)
-.zp_map_scroll_y SKIP 1         ; Map scroll Y (coarse tiles)
+.zp_frog_col     SKIP 1         ; Frog tile column within current screen
+.zp_frog_row     SKIP 1         ; Frog tile row within current screen
+.zp_map_scroll_x SKIP 1         ; Current screen X in map
+.zp_map_scroll_y SKIP 1         ; Current screen Y in map
 
 ; --- Tile renderer temporaries ---
 .zp_tile_y_ofs   SKIP 1         ; Y pixel offset within tile
