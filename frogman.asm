@@ -44,11 +44,13 @@ PUTFILE "extracted/Level2M",  "Level2M", &5800, &5800
 PUTFILE "extracted/Tabs",     "Tabs",    &0100, &0100
 PUTFILE "extracted/Tbar",     "Tbar",    &7800, &7800
 
-; --- Title screen ---
+; --- Title screen setup code ---
+; RLE decompressor + title screen display + game launcher.
+INCLUDE "setup.asm"
+SAVE "Setup", setup_entry, P%, setup_entry
+
 ; Data2 is the RLE-compressed title screen graphic.
-; Setup is the decompressor + SPACE key wait.
 PUTFILE "extracted/Data2",   "Data2",   &1300, &1300
-PUTFILE "Setup",             "Setup",   &0900, &0900
 
 ; --- Boot loader ---
 ; Ribbit is the tokenized BASIC program.

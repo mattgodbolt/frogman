@@ -12,6 +12,10 @@ __pycache__/
 *~
 .vscode/
 
+# Generated from Tiled sources
+extracted/Level1M
+extracted/Level2M
+
 # Verification temporaries
 _verify*
 

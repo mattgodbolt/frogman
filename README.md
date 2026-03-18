@@ -34,15 +34,25 @@ Yellow dots mark item/special tile positions. Green rectangle marks the frog's s
 make
 ```
 
-Requires [BeebASM](https://github.com/stardot/beebasm). Produces `frogman_rebuilt.ssd` which can be booted in any BBC Master emulator.
-
-## Verification
+Requires [BeebASM](https://github.com/stardot/beebasm) and Python 3 with Pillow. Produces `frogman_rebuilt.ssd` which can be booted in any BBC Micro or Master emulator.
 
 ```bash
-./verify.sh
+make verify     # Build and verify byte-exact match
 ```
 
-Confirms byte-exact match of assembled output against the original decrypted binaries, and builds the disc image.
+## Editing Levels
+
+Level maps are edited in [Tiled Map Editor](https://www.mapeditor.org/). The `.tmx` files in `tiled/` are the canonical map sources.
+
+```bash
+tiled tiled/level1.tmx    # Edit the map
+make                      # Rebuild disc from .tmx sources
+```
+
+To regenerate the Tiled files from the original binaries (one-time export):
+```bash
+python3 export_tiled.py
+```
 
 ## Repository Structure
 
@@ -52,20 +62,26 @@ frogman.ssd               Original disk image (1993)
 frogman.asm                Main BeebASM build file
 constants.asm              Shared constants (OS entry points, hardware registers)
 zero_page.asm              Named zero page variable definitions
-engine.asm                 Game engine: rendering, sprites, movement, sound
+engine.asm                 Game engine: rendering, sound, tile rendering
 tables.asm                 Lookup tables: tile source addressing, palette, sound
-music.asm                  Music data: three tunes + sound state block
+music.asm                  Music data (overwritten per-level by Level?T)
 game.asm                   Game code: main loop, IRQ, collision, keyboard, levels
-boot.bas                   BASIC boot loader
+setup.asm                  Title screen RLE decompressor
+boot.bas                   BASIC boot loader (Mode 7 credits + level select)
 bootcmd.txt                !Boot file for disc
 
-extracted/                 Raw files from disk image
-extracted/decrypted/       Decrypted memory dumps from emulator
+tiled/                     Level maps (Tiled Map Editor format — canonical source)
+  level1.tmx, level2.tmx  Map data (edit these!)
+  level1_tileset.png/tsx   Tileset image and definition
+  level2_tileset.png/tsx
+
+extracted/                 Original disc files (graphics, sound, sprites)
 data/                      Reference binaries for verification
 
+export_tiled.py            Generate Tiled .tmx from Level?M binaries
+import_tiled.py            Generate Level?M binaries from Tiled .tmx
 render_map.py              Level map renderer (generates PNG world maps)
 verify.sh                  Byte-exact verification script
-save_dumps.py              Memory dump collection tooling
 Makefile                   Build system
 DIARY.md                   Reverse engineering diary
 ```

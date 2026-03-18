@@ -14,11 +14,12 @@
 ;   Decompression ends when dest high byte goes negative (>= &80)
 ; ============================================================================
 
+CLEAR &0900, &0A00
+CLEAR &0A00, &0B00
 ORG &0900
 
-INCLUDE "constants.asm"
-
-.setup_entry
+.*setup_entry
+{
     ; --- Blank display before mode change ---
     LDA #&01 : STA CRTC_ADDR    ; CRTC R1
     LDA #&00 : STA CRTC_DATA    ; Horizontal displayed = 0 (blank)
@@ -146,5 +147,4 @@ INCLUDE "constants.asm"
     EQUS "L.Gcode", 13
 .oscli_load_fastio
     EQUS "L.FastI/O 5800", 13
-
-SAVE "Setup", setup_entry, P%, setup_entry
+}
