@@ -1,12 +1,14 @@
 # FROGMAN
 
-A BBC Master platformer written by Matt Godbolt and Richard Talbot-Watkins in February 1993.
+A BBC Micro platformer written by Matt Godbolt and Richard Talbot-Watkins in February 1993.
 
 This repository contains a fully annotated, instruction-level disassembly of the game, suitable for reassembly with [BeebASM](https://github.com/stardot/beebasm).
 
+**[Play in your browser!](https://bbc.xania.org/?disc=https://raw.githubusercontent.com/mattgodbolt/frogman/classic/frogman_rebuilt.ssd&autoboot)**
+
 ## The Game
 
-FROGMAN is a flip-screen platformer for the BBC Master. You control a frog navigating levels filled with platforms, ladders, hazards, and collectible items. The game features two levels, palette cycling animation, music, and a lives system.
+FROGMAN is a flip-screen platformer for the BBC Micro. You control a frog navigating levels filled with platforms, ladders, hazards, and collectible items. The game features two levels, palette cycling animation, music, and a lives system. Originally written for the BBC Master, the remastered version also runs on the BBC Model B.
 
 Controls: **Z** (right), **X** (down), **:** (climb), **/** (short hop), **f0** (use item slot 0), **f1** (use item slot 1), **SPACE** (start), **ESCAPE** (die/restart), **M** (toggle music).
 

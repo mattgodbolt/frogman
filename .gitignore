@@ -5,6 +5,7 @@ __pycache__/
 # Build output
 *.ssd
 !frogman.ssd
+!frogman_rebuilt.ssd
 
 # Editor/IDE
 *.swp
