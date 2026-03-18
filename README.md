@@ -8,7 +8,7 @@ This repository contains a fully annotated, instruction-level disassembly of the
 
 FROGMAN is a flip-screen platformer for the BBC Master. You control a frog navigating levels filled with platforms, ladders, hazards, and collectible items. The game features two levels, palette cycling animation, music, and a lives system.
 
-Controls: **Z** (right), **X** (down), **:** (climb), **/** (short hop), **f0** (use item slot 0), **f1** (use item slot 1), **SPACE** (start), **ESCAPE** (die/restart). There is also a hidden debug key: **M** toggles sprite display.
+Controls: **Z** (right), **X** (down), **:** (climb), **/** (short hop), **f0** (use item slot 0), **f1** (use item slot 1), **SPACE** (start), **ESCAPE** (die/restart), **M** (toggle music).
 
 The original game files are heavily encrypted on disk using a 55-stage XOR encryption chain with VIA timer-based PRNG seeds, making static analysis intentionally impossible. This disassembly was produced by booting the game in an emulator and dumping decrypted memory at runtime.
 
