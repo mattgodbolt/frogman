@@ -3,7 +3,7 @@
 ; Loaded at &4800, encrypted on disc as 'Gcode'
 ;
 ; Contains the main game loop, IRQ handler, collision detection,
-; keyboard handling, level loading, and sprite management.
+; keyboard handling, level loading, and sound control.
 ;
 ; Every byte verified against data/gcode_decrypted.bin.
 ; ============================================================================
@@ -139,7 +139,7 @@ ORG &4800
     STA zp_frame_ctr            ; Frame sub-counter
     STA zp_game_state           ; Game state flags
     STA zp_terminal_ctr         ; Terminal/checkpoint counter
-    STA zp_sprite_inhibit       ; Sprite update inhibit (0 = enabled)
+    STA zp_music_inhibit       ; Music enabled (0 = on)
     LDA #&07
     STA zp_palette_count        ; Active palette entries for cycling
     LDA #&08
@@ -167,20 +167,20 @@ ORG &4800
     LDA #&0F
     LDX #&03
     JSR set_palette             ; Set palette entry 3 to colour 15
-    JSR clear_sprite_state      ; Clear all sprite animation state
+    JSR clear_sound_state      ; Silence all sound channels
     CLI                         ; Enable interrupts — game starts running
 
 ; === Game Loop Setup ===
 ; Called at the start of each life / level.
-; Initialises sprites, loads the level map, renders the initial screen,
+; Initialises sound, loads the level map, renders the initial screen,
 ; draws the status bar and title text, then waits for SPACE to start.
 
 .game_loop_start
-    LDA zp_sprite_inhibit       ; Save sprite update inhibit state
+    LDA zp_music_inhibit       ; Save music inhibit state
     PHA
     JSR jmp_init_game                   ; engine: init_game (VIA config)
     LDA #&FF
-    STA zp_sprite_inhibit       ; Inhibit sprite updates during setup
+    STA zp_music_inhibit       ; Silence music during setup
     LDA #&00
     STA zp_item_0               ; Clear item slot 0
     STA zp_item_1               ; Clear item slot 1
@@ -195,7 +195,7 @@ ORG &4800
     STA zp_map_src_hi           ; Map source high
     JSR jmp_render_map                   ; engine: render_map
     PLA
-    STA zp_sprite_inhibit       ; Restore sprite update inhibit
+    STA zp_music_inhibit       ; Restore music state
     JSR fade_in                   ; Draw "FROGMAN BY MG RTW" title
     LDA #&02                    ; Colour 2
     STA zp_text_colour
@@ -390,13 +390,13 @@ ORG &4800
     JMP use_item_slot
 .no_scroll
     JSR wait_vsync
-    LDA #&65                    ; M key (toggle sprites — debug?)
+    LDA #&65                    ; M key (toggle music on/off)
     JSR read_key
     BPL done
     JSR jmp_init_game    ; engine: init_game
-    LDA zp_sprite_inhibit
+    LDA zp_music_inhibit
     EOR #&FF
-    STA zp_sprite_inhibit
+    STA zp_music_inhibit
 .wait_release
     LDA #&65
     JSR read_key
@@ -591,7 +591,7 @@ ORG &4800
 
 ; === VSYNC IRQ Handler ===
 ; Called via IRQ1V on every vertical sync (~50Hz).
-; Handles: sprite updates, palette colour cycling, VSYNC flag.
+; Handles: sound updates, palette colour cycling, VSYNC flag.
 ;
 ; Zero page variables defined in zero_page.asm
 
@@ -609,12 +609,12 @@ ORG &4800
 
     STA VIA_IFR                 ; Acknowledge VSYNC interrupt
 
-    ; --- Update sprites (if not inhibited) ---
-    LDA zp_sprite_inhibit       ; Sprite update inhibit flag
-    BNE skip_sprites            ; Non-zero = skip
-    JSR jmp_update_sprites      ; engine: update_sprites
+    ; --- Update sound (if not inhibited) ---
+    LDA zp_music_inhibit       ; Music inhibit flag
+    BNE skip_sound              ; Non-zero = skip
+    JSR jmp_update_sound      ; engine: update_sound
 
-.skip_sprites
+.skip_sound
     LDA #&FF
     STA zp_vsync_flag           ; Set VSYNC flag for game loop
 
@@ -2049,7 +2049,7 @@ ORG &4800
     STA zp_scroll_y
     LDY #&00
     JSR tile_addr_setup_y
-    JSR clear_sprite_state
+    JSR clear_sound_state
     CLI
     RTS
 
@@ -2073,17 +2073,16 @@ ORG &4800
     RTS
 }
 
-; === Clear Sprite State ===
-; Zeros the animation timer (&78-&7B) and animation index (&8C-&8F)
-; for all 4 sprite slots.
+; === Clear Sound State ===
+; Zeros the note timer and music stream index for all 4 channels.
 
-.clear_sprite_state
+.clear_sound_state
 {
     LDA #&00
     TAX
 .loop
-    STA zp_spr_anim_tmr,X       ; Animation timer
-    STA zp_spr_anim_idx,X       ; Animation index
+    STA zp_snd_timer,X       ; Animation timer
+    STA zp_snd_anim_idx,X       ; Animation index
     INX
     CPX #&04
     BNE loop

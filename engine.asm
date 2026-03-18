@@ -17,13 +17,11 @@ INCLUDE "tables.asm"
 ; GAME ENGINE
 ; ############################################################################
 ; 1018 bytes implementing the complete game logic:
-;   - Tile rendering with scrolling
-;   - Sprite animation state machines
-;   - Physics and gravity
-;   - SN76489 sound chip control
+;   - Tile rendering (flip-screen)
+;   - Music/sound engine (4-channel sequencer via SN76489)
 ;   - Game initialization
 ;
-; Sprite state uses X-indexed zero page arrays for 4 sprites.
+; Sound state uses X-indexed zero page arrays for 4 channels.
 ; ############################################################################
 
 ; === Jump Table ===
@@ -33,8 +31,8 @@ INCLUDE "tables.asm"
 .jmp_calc_scrn_addr : JMP calc_screen_addr
 .jmp_setup_map      : JMP setup_map_render
 .jmp_render_map     : JMP render_map
-.jmp_spawn_sprite   : JMP spawn_sprite     ; (unused — called directly)
-.jmp_update_sprites : JMP update_sprites
+.jmp_init_channel   : JMP init_channel     ; (unused — called directly)
+.jmp_update_sound : JMP update_sound
 .jmp_init_game      : JMP init_game
 
 ; === Block Copy ===
@@ -163,9 +161,9 @@ INCLUDE "tables.asm"
     JSR via_config_b           ; Configure System VIA ports
     RTS
 
-; === Animation Token Parser ===
-; Parses animation stream tokens for sprite state machines.
-; Tokens: &FC=set loop, &FA=loop back, &FE=end, other=frame data.
+; === Music Token Parser ===
+; Parses music stream tokens for the 4-channel sound sequencer.
+; Tokens: &FC=set loop, &FA=loop back, &FE=end, other=note data.
 
 .parse_anim_token
     CMP #&FC                    ; Set loop point?
@@ -174,186 +172,186 @@ INCLUDE "tables.asm"
     BEQ anim_loop_back
     CMP #&FE                    ; End of sequence?
     BNE anim_frame_data
-    LDY #&00                    ; Reset animation index
-    JMP update_sprite_read
+    LDY #&00                    ; Reset stream index
+    JMP read_music_token
 
 .anim_frame_data
     AND #&7F                    ; Strip high bit
-    STA zp_spr_frame                     ; Store frame byte
+    STA zp_snd_tmp_frame                     ; Store frame byte
     INY
-    LDA anim_timing_const                   ; Global animation timing constant
-    STA zp_spr_timer                     ; Frame duration
+    LDA anim_timing_const                   ; Global note timing constant
+    STA zp_snd_tmp_timer                     ; Note duration
     JMP anim_apply
 
 .anim_set_loop
     TYA                         ; Save stream position
-    STA sprite_anim_loop_y,X                 ; as loop-back point
+    STA channel_loop_y,X                 ; as loop-back point
     INY
-    LDA (zp_anim_ptr_lo),Y                 ; Read repeat count
-    STA sprite_anim_loop_ctr,X
+    LDA (zp_snd_data_lo),Y                 ; Read repeat count
+    STA channel_loop_ctr,X
     INY
-    JMP update_sprite_read
+    JMP read_music_token
 
 .anim_loop_back
     STY anim_saved_y + 1        ; Save current Y (self-modifying immediate)
-    LDY sprite_anim_loop_y,X    ; Restore loop-back position
+    LDY channel_loop_y,X    ; Restore loop-back position
     INY : INY                   ; Skip past &FC marker and count byte
-    DEC sprite_anim_loop_ctr,X       ; Decrement repeat counter
-    BNE update_sprite_read      ; Loop again if count > 0
+    DEC channel_loop_ctr,X       ; Decrement repeat counter
+    BNE read_music_token      ; Loop again if count > 0
 .anim_saved_y
     LDY #&00                    ; Count exhausted — restore Y to &FA token position (patched)
     INY                         ; Advance past &FA token
-    JMP update_sprite_read
+    JMP read_music_token
 
-; --- Direction/speed decoding ---
-; Bit 1 selects axis: 0=vertical, 1=horizontal.
-; Vertical: upper nibble >> 4. Horizontal: bits 3:2 >> 2.
+; --- Frequency/volume decoding ---
+; Bit 1 selects parameter: 0=frequency, 1=volume.
+; Frequency: upper nibble >> 4. Volume: bits 3:2 >> 2.
 
 .anim_apply_data
-    LDA zp_spr_frame
+    LDA zp_snd_tmp_frame
     AND #&02                    ; Test bit 1
     BNE anim_set_horiz
 
-    LDA zp_spr_frame
+    LDA zp_snd_tmp_frame
     LSR A : LSR A : LSR A : LSR A
-    STA sprite_vert_speed,X                 ; Vertical speed
+    STA channel_freq_param,X                 ; Frequency parameter
     INY
-    JMP update_sprite_read
+    JMP read_music_token
 
 .anim_set_horiz
-    LDA zp_spr_frame
+    LDA zp_snd_tmp_frame
     LSR A : LSR A
-    STA sprite_horiz_param,X                 ; Horizontal speed
+    STA channel_vol_param,X                 ; Volume parameter
     INY
-    JMP update_sprite_read
+    JMP read_music_token
 
-; === Update Sprites ===
-; Main per-frame sprite update.
-; Sprites 1-3: data-driven animation (objects/hazards follow scripted paths)
-; Sprite 0: physics-driven movement (player)
+; === Update Sound ===
+; Main per-frame sound update.
+; Channels 1-3: music sequencer (data-driven note/envelope sequences)
+; Channel 0: sound effects (envelope-driven)
 
-.update_sprites
+.update_sound
     JSR via_config_a           ; Configure VIA for sound output
 
-    LDX #&01                    ; Start with object sprites
+    LDX #&01                    ; Start with music channels (1-3)
 
-.update_object_loop
-    LDA zp_spr_anim_tmr,X                   ; Animation timer
-    BNE update_object_next       ; Active — skip to next
+.update_channel_loop
+    LDA zp_snd_timer,X                   ; Note duration timer
+    BNE next_channel             ; Still playing — skip
 
-    ; Timer expired — read new animation from stream
+    ; Timer expired — read next token from music stream
     LDA #&80
-    STA zp_anim_ptr_lo                     ; Animation ptr low = &80
-    LDA sprite_anim_src_hi,X                 ; Animation source high for sprite X
-    STA zp_anim_ptr_hi
-    LDY zp_spr_anim_idx,X                   ; Animation stream index
+    STA zp_snd_data_lo                     ; Music data ptr low = &80
+    LDA channel_data_hi,X                 ; Music data page for channel X
+    STA zp_snd_data_hi
+    LDY zp_snd_anim_idx,X                   ; Music stream index
 
-; --- Central animation dispatch ---
+; --- Central music dispatch ---
 ; All token parser branches return here to read the next token.
 
-.update_sprite_read
-    LDA (zp_anim_ptr_lo),Y                 ; Read token from animation stream
-    STA zp_spr_frame
+.read_music_token
+    LDA (zp_snd_data_lo),Y                 ; Read token from music stream
+    STA zp_snd_tmp_frame
     AND #&01                    ; Test bit 0
     BNE anim_apply_data         ; Direction/speed change
 
-    LDA zp_spr_frame
+    LDA zp_snd_tmp_frame
     BMI parse_anim_token        ; Special token (&FC/&FA/&FE)
 
     ; Normal frame: read duration
     INY
-    LDA (zp_anim_ptr_lo),Y                 ; Read duration
-    STA zp_spr_timer
+    LDA (zp_snd_data_lo),Y                 ; Read duration
+    STA zp_snd_tmp_timer
     INY
 
 .anim_apply
-    STY zp_spr_anim_idx,X                   ; Update animation index
-    LDA sprite_vert_speed,X                 ; Vertical speed
-    STA zp_spr_speed
-    LDY sprite_horiz_param,X                 ; Horizontal speed
-    JSR spawn_sprite            ; Set up sprite movement
+    STY zp_snd_anim_idx,X                   ; Update stream index
+    LDA channel_freq_param,X                 ; Frequency parameter
+    STA zp_snd_tmp_speed
+    LDY channel_vol_param,X                 ; Volume parameter
+    JSR init_channel            ; Set up channel envelope
 
-.update_object_next
+.next_channel
     INX
-    CPX #&04                    ; All objects done?
-    BNE update_object_loop
+    CPX #&04                    ; All channels done?
+    BNE update_channel_loop
 
-    ; --- Physics/movement loop (sprites 0-3) ---
+    ; --- Envelope processing loop (channels 0-3) ---
     LDX #&00
 
-.update_player
-    LDA zp_spr_dir,X                   ; Sprite direction/speed
-    BEQ player_no_movement      ; Not moving
+.process_envelope
+    LDA zp_snd_freq,X                   ; Channel frequency
+    BEQ channel_idle             ; Silent — skip
 
     LSR A                       ; Strip direction bit
-    JSR set_tone                ; Set movement sound frequency
+    JSR set_tone                ; Set frequency from channel data
 
-    LDA zp_spr_anim_tmr,X                   ; Animation timer
-    BEQ player_chain            ; Timer expired
+    LDA zp_snd_timer,X                   ; Note duration timer
+    BEQ envelope_next            ; Timer expired
 
-    ; Set sound volume based on sub-pixel Y position
-    LDA zp_spr_subpix,X                   ; Y sub-pixel
+    ; Set volume from envelope position
+    LDA zp_snd_vol,X                   ; Volume envelope
     LSR A : LSR A : LSR A : LSR A  ; -> table index
     JSR set_volume         ; Volume from position
 
-    ; Load movement data pointers
-    LDY zp_spr_move_idx,X
-    LDA zp_spr_move_lo,X : STA zp_move_ptr_lo         ; Movement ptr low
-    LDA zp_spr_move_hi,X : STA zp_move_ptr_hi         ; Movement ptr high
+    ; Load sequence data pointers
+    LDY zp_snd_seq_idx,X
+    LDA zp_snd_seq_lo,X : STA zp_move_ptr_lo         ; Sequence ptr low
+    LDA zp_snd_seq_hi,X : STA zp_move_ptr_hi         ; Sequence ptr high
 
-    ; Apply velocities
-    LDA (zp_move_ptr_lo),Y : CLC : ADC zp_spr_subpix,X : STA zp_spr_subpix,X : INY   ; Y velocity
-    LDA (zp_move_ptr_lo),Y : CLC : ADC zp_spr_dir,X : STA zp_spr_dir,X         ; X velocity
+    ; Apply envelope deltas
+    LDA (zp_move_ptr_lo),Y : CLC : ADC zp_snd_vol,X : STA zp_snd_vol,X : INY   ; Volume delta
+    LDA (zp_move_ptr_lo),Y : CLC : ADC zp_snd_freq,X : STA zp_snd_freq,X         ; Frequency delta
 
-    ; Movement sub-counter
-    DEC zp_spr_subctr,X
+    ; Envelope sub-counter
+    DEC zp_snd_subctr,X
     BPL movement_timer
 
-    ; Sub-counter expired — advance to next step
+    ; Sub-counter expired — advance to next envelope step
     INY : INY
-    LDA (zp_move_ptr_lo),Y : CLC : ADC zp_spr_move_idx,X : STA zp_spr_move_idx,X
+    LDA (zp_move_ptr_lo),Y : CLC : ADC zp_snd_seq_idx,X : STA zp_snd_seq_idx,X
     TAY
     INY : INY
-    LDA (zp_move_ptr_lo),Y : STA zp_spr_subctr,X    ; New sub-counter
+    LDA (zp_move_ptr_lo),Y : STA zp_snd_subctr,X    ; New sub-counter
 
 .movement_timer
-    LDA zp_spr_anim_tmr,X                   ; Check timer
-    BEQ player_chain
-    DEC zp_spr_anim_tmr,X                   ; Decrement
-    BNE player_chain            ; Still running
+    LDA zp_snd_timer,X                   ; Check note timer
+    BEQ envelope_next
+    DEC zp_snd_timer,X                   ; Decrement
+    BNE envelope_next            ; Still running
 
-    ; Timer hit zero — chain to next sequence
+    ; Note ended — chain to next envelope sequence
     LDY #&00
     LDA (zp_move_ptr_lo),Y                 ; Chain flag
-    BMI sprite_kill             ; Bit 7 set = end of chain
+    BMI channel_off             ; Bit 7 set = end of chain
 
     PHA                         ; Save chain index
     INY
     LDA (zp_move_ptr_lo),Y                 ; New timer value
-    STA zp_spr_anim_tmr,X
+    STA zp_snd_timer,X
     PLA
     ASL A                       ; x2 for word table
     TAY
-    LDA move_ptr_table,Y : STA zp_spr_move_lo,X : STA zp_move_ptr_lo   ; New movement ptr low
-    LDA move_ptr_table + 1,Y : STA zp_spr_move_hi,X : STA zp_move_ptr_hi   ; New movement ptr high
-    LDA #&02 : STA zp_spr_move_idx,X       ; Reset index (skip past 2-byte chain terminator)
-    JMP player_chain
+    LDA move_ptr_table,Y : STA zp_snd_seq_lo,X : STA zp_move_ptr_lo   ; New movement ptr low
+    LDA move_ptr_table + 1,Y : STA zp_snd_seq_hi,X : STA zp_move_ptr_hi   ; New movement ptr high
+    LDA #&02 : STA zp_snd_seq_idx,X       ; Reset index (skip past 2-byte chain terminator)
+    JMP envelope_next
 
-.sprite_kill
+.channel_off
     LDA #&00
     JSR set_volume         ; Silence channel
 
-.player_chain
+.envelope_next
     INX
-    CPX #&04                    ; All sprites done?
-    BNE update_player
+    CPX #&04                    ; All channels done?
+    BNE process_envelope
 
     JSR via_config_b           ; Restore VIA to normal configuration
     RTS
 
-.player_no_movement
-    DEC zp_spr_anim_tmr,X                   ; Just decrement timer
-    JMP player_chain
+.channel_idle
+    DEC zp_snd_timer,X                   ; Decrement rest timer
+    JMP envelope_next
 
 ; === SN76489 Sound Chip Write ===
 ; Writes a byte to the SN76489 via System VIA.
@@ -400,34 +398,34 @@ INCLUDE "tables.asm"
 .channel_vol_regs
     EQUB &F0, &D0, &B0, &90    ; Ch 3,2,1,0 volume/atten (1 cc 1 0000)
 
-; Runtime sprite state (X-indexed, modified during gameplay)
-.sprite_vert_speed
+; Runtime sound channel state (X-indexed, modified during playback)
+.channel_freq_param
     EQUB &00, &0F, &0E, &0D
-.sprite_horiz_param
+.channel_vol_param
     EQUB &00, &01, &01, &01
-.sprite_anim_loop_y
+.channel_loop_y
     EQUB &00, &00, &00, &00
-.sprite_anim_loop_ctr
+.channel_loop_ctr
     EQUB &00, &00, &00, &00
-.sprite_anim_src_hi
+.channel_data_hi
     EQUB &00, &0C, &0D, &0E
 
-; === Spawn Sprite ===
-; Initializes a sprite slot with position, speed, and movement data.
-; Entry: zp_spr_timer, zp_spr_frame, zp_spr_speed, Y=sequence index, X=slot
+; === Init Sound Channel ===
+; Initializes a sound channel with frequency, volume, and envelope data.
+; Entry: zp_snd_tmp_timer, zp_snd_tmp_frame, zp_snd_tmp_speed, Y=sequence index, X=channel
 
-.spawn_sprite
-    LDA zp_spr_timer : STA zp_spr_anim_tmr,X         ; Set animation timer
-    LDA zp_spr_frame : ASL A : STA zp_spr_dir,X ; Direction x2
-    LDA zp_spr_speed                     ; Movement speed
-    ASL A : ASL A : ASL A : ASL A  ; x16 for sub-pixel
-    STA zp_spr_subpix,X                   ; Y sub-pixel position
-    TYA : ASL A : TAY           ; Sequence index x2
-    LDA move_ptr_table,Y : STA zp_spr_move_lo,X : STA zp_move_ptr_lo  ; Movement ptr low
-    LDA move_ptr_table + 1,Y : STA zp_spr_move_hi,X : STA zp_move_ptr_hi  ; Movement ptr high
-    LDA #&02 : STA zp_spr_move_idx,X        ; Movement index (skip past chain terminator)
-    LDY #&04                    ; Offset 4 = sub-counter in movement sequence
-    LDA (zp_move_ptr_lo),Y : STA zp_spr_subctr,X     ; Initial sub-counter
+.init_channel
+    LDA zp_snd_tmp_timer : STA zp_snd_timer,X         ; Set note duration
+    LDA zp_snd_tmp_frame : ASL A : STA zp_snd_freq,X ; Frequency value × 2
+    LDA zp_snd_tmp_speed                     ; Volume level
+    ASL A : ASL A : ASL A : ASL A  ; × 16 for envelope resolution
+    STA zp_snd_vol,X                   ; Volume envelope position
+    TYA : ASL A : TAY           ; Sequence index × 2 for word table
+    LDA move_ptr_table,Y : STA zp_snd_seq_lo,X : STA zp_move_ptr_lo  ; Sequence ptr low
+    LDA move_ptr_table + 1,Y : STA zp_snd_seq_hi,X : STA zp_move_ptr_hi  ; Sequence ptr high
+    LDA #&02 : STA zp_snd_seq_idx,X        ; Sequence index (skip past 2-byte chain terminator)
+    LDY #&04                    ; Offset 4 = sub-counter in envelope sequence
+    LDA (zp_move_ptr_lo),Y : STA zp_snd_subctr,X     ; Initial sub-counter
     RTS
 
 ; === System VIA Port Config A ===
@@ -450,8 +448,8 @@ INCLUDE "tables.asm"
     LDA #&FF : STA VIA_DDRB        ; DDRB = &FF: all port B bits output
     RTS
 
-; === Movement Data Pointer Table ===
-; 7 word entries pointing to movement sequences.
+; === Envelope Sequence Pointer Table ===
+; 7 word entries pointing to envelope sequences.
 
 .move_ptr_table
     EQUW move_seq_0             ; Seq 0
@@ -462,12 +460,12 @@ INCLUDE "tables.asm"
     EQUW move_seq_5             ; Seq 5
     EQUW move_seq_6             ; Seq 6
 
-; === Movement Data Sequences ===
-; Velocity/duration patterns for sprite movement.
-; Each entry is: velocityY, velocityX, param1, param2
-; (values like &FD/-3 and &FE/-2 are signed velocity bytes, not special prefixes).
+; === Envelope Sequences ===
+; Frequency/volume delta patterns for sound channels.
+; Each entry is: volume_delta, freq_delta, index_step, sub_count
+; (values like &FD/-3 and &FE/-2 are signed deltas).
 ; &FF,&FF at the start of each sequence is a chain terminator for the
-; previous sequence (or initial guard — spawn code sets index=2 to skip past it).
+; previous sequence (init_channel sets index=2 to skip past it).
 
 .move_seq_0
     EQUB &FF, &FF               ; Chain terminator (BMI kills sprite reading byte 0)

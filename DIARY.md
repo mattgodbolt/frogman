@@ -269,4 +269,25 @@ The game uses flip-screen transitions, not smooth scrolling. This was a fundamen
 - Full annotation of the setup code at &1100-&12FF
 - The relationship between the three tunes and game states
 - `game_routines_2` padding bytes between `set_palette` and `wait_vsync`
+## Entry 18: "Sprites" Are Sound Channels
+
+Major conceptual correction: what the engine calls "sprites" are actually **sound channels**. The game has no visual sprites in the traditional sense — the frog is rendered by the overlay system (`tile_render` compositing from &3700 via AND/ORA masking onto the background). The engine's `update_sprites` routine is a 4-channel music/sound sequencer:
+
+- Channels 1-3: music voices following scripted note sequences
+- Channel 0: sound effects with envelope-driven frequency/volume
+
+The "animation tokens" (&FC=loop, &FA=loop-back, &FE=end) are music sequence commands. The "movement sequences" are frequency/volume envelope data. The "sprite state arrays" are per-channel sound state.
+
+Renamed throughout:
+- `update_sprites` → `update_sound`, `spawn_sprite` → `init_channel`
+- `sprite_anim_*` → `channel_*`, `sprite_vert_speed` → `channel_freq_param`
+- `zp_spr_*` → `zp_snd_*` (freq, vol, timer, seq_lo/hi, etc.)
+- `zp_sprite_inhibit` → `zp_music_inhibit`
+- `clear_sprite_state` → `clear_sound_state`
+- All comments updated: "animation" → "music", "movement" → "envelope", etc.
+
+The M key toggles music (not "sprite display" as previously thought) — it sets `zp_music_inhibit` which prevents the IRQ handler from calling `update_sound`.
+
+## What Remains
+
 - Port to BBC Model B — the original game requires a Master (PAGE=&E00, possibly sideways RAM for Level?M files). Investigate what would need to change: PAGE location, memory layout, any Master-specific hardware dependencies

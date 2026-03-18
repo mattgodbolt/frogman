@@ -50,30 +50,30 @@ ORG &00
 .zp_game_state   SKIP 1         ; Game state flags (bit 7 = map revealed)
 .zp_special_flag SKIP 1         ; Special tile interaction flag
 .zp_terminal_ctr SKIP 1         ; Terminal/checkpoint counter
-.zp_sprite_inhibit SKIP 1       ; Non-zero = skip sprite updates in IRQ
+.zp_music_inhibit SKIP 1       ; Non-zero = skip sprite updates in IRQ
 .zp_lives        SKIP 1         ; Lives remaining
 .zp_palette_count SKIP 1        ; Number of active palette entries for cycling
 .zp_level_char   SKIP 1         ; ASCII level number character ('1' or '2')
 .zp_temp_item    SKIP 1         ; Temporary: item tile being placed
 .zp_temp_type    SKIP 1         ; Temporary: item type being placed
 
-; --- Engine temporaries (used during sprite update) ---
+; --- Engine temporaries (used during sound channel update) ---
 ORG &60
-.zp_move_ptr_lo  SKIP 1         ; Current movement data pointer low
-.zp_move_ptr_hi  SKIP 1         ; Current movement data pointer high
-.zp_spr_timer    SKIP 1         ; Sprite timer temporary
-.zp_spr_frame    SKIP 1         ; Sprite frame/direction temporary
-.zp_spr_speed    SKIP 1         ; Sprite speed temporary
+.zp_move_ptr_lo  SKIP 1         ; Current sequence data pointer low
+.zp_move_ptr_hi  SKIP 1         ; Current sequence data pointer high
+.zp_snd_tmp_timer    SKIP 1         ; Channel duration temporary
+.zp_snd_tmp_frame    SKIP 1         ; Channel token/direction temporary
+.zp_snd_tmp_speed    SKIP 1         ; Channel speed temporary
 
-; --- Sprite state arrays (X-indexed, 4 sprites each) ---
+; --- Sound channel state (X-indexed, 4 channels) ---
 ORG &70
-.zp_spr_dir      SKIP 4         ; Sprite direction/speed (&70-&73)
-.zp_spr_subpix   SKIP 4         ; Sprite Y sub-pixel position (&74-&77)
-.zp_spr_anim_tmr SKIP 4         ; Sprite animation timer (&78-&7B)
-.zp_spr_move_lo  SKIP 4         ; Sprite movement ptr low (&7C-&7F)
-.zp_spr_move_hi  SKIP 4         ; Sprite movement ptr high (&80-&83)
-.zp_spr_move_idx SKIP 4         ; Sprite movement index (&84-&87)
-.zp_spr_subctr   SKIP 4         ; Sprite movement sub-counter (&88-&8B)
-.zp_spr_anim_idx SKIP 4         ; Sprite animation stream index (&8C-&8F)
-.zp_anim_ptr_lo  SKIP 1         ; Animation data pointer low (&90)
-.zp_anim_ptr_hi  SKIP 1         ; Animation data pointer high (&91)
+.zp_snd_freq      SKIP 4         ; Channel frequency value
+.zp_snd_vol       SKIP 4         ; Channel volume envelope position
+.zp_snd_timer     SKIP 4         ; Channel note duration timer
+.zp_snd_seq_lo    SKIP 4         ; Sequence data pointer low
+.zp_snd_seq_hi    SKIP 4         ; Sequence data pointer high
+.zp_snd_seq_idx   SKIP 4         ; Sequence data index
+.zp_snd_subctr    SKIP 4         ; Envelope sub-counter
+.zp_snd_anim_idx  SKIP 4         ; Music stream index
+.zp_snd_data_lo   SKIP 1         ; Music data pointer low
+.zp_snd_data_hi   SKIP 1         ; Music data pointer high
