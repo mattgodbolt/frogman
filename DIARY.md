@@ -227,9 +227,46 @@ Scoped all remaining copy loops with local labels (no `.*` needed — self-modif
 
 **physics_table investigation:** Tested reciprocal, exponential, power curve, and linear formulas against all 128 values. No simple formula produces a byte-exact match — the irregular first-differences suggest original BBC BASIC fixed-point arithmetic or hand-tuning. Keeping hardcoded EQUB.
 
+## Entry 17: Three-Agent Review and Game Mechanics Corrections
+
+Launched three review agents in parallel to audit engine.asm and game.asm for comment accuracy.
+
+**Code recovered from EQUB data:**
+- `read_key` was 7 bytes of EQUB — now properly disassembled as `STA VIA_ORA_NH : BIT VIA_ORA_NH : RTS` (direct VIA keyboard scan via no-handshake ORA at &FE4F).
+- `get_tile_type` prefix was 4 bytes of EQUB — now `STY get_tile_type_ry + 1 : SEC` (self-modifying Y save).
+
+**Key scan codes verified against BBC Micro keyboard matrix** (row × &10 + column):
+- X (&42) = move down, Z (&61) = move right, : (&48) = climb/move up
+- / (&68) = short hop modifier (4-step vs 8-step animation)
+- f0 (&20) = use item slot 0, f1 (&71) = use item slot 1
+- SPACE (&62) = start, ESCAPE (&70) = die/restart
+- **M (&65) = toggle sprite display — a debug key!** Previously unknown.
+
+**Critical game mechanics correction — flip-screen, not scrolling:**
+The game uses flip-screen transitions, not smooth scrolling. This was a fundamental misunderstanding that cascaded through many labels and comments:
+- `scroll_routines` → `use_item_slot` (f0/f1 pick up and place items, not scroll!)
+- `scroll_right`/`scroll_left` → `short_hop_right`/`short_hop_left` (/ key shortens hops)
+- `game_routines_4` → `place_item`
+- `zp_scroll_x`/`zp_scroll_y` are the frog's pixel position within the current screen
+- `zp_map_scroll_x`/`zp_map_scroll_y` are which screen the player is on in the map grid
+- `INC zp_map_scroll_x` + `JSR jmp_setup_map` = flip to the next screen
+
+**Engine comment fixes from review:**
+- Animation loop comments ("Y = 1", "advance past loop body") were factually wrong — fixed
+- VIA config routines had misleading "refresh timer" comments — now describe actual purpose
+- Self-modifying AND in tile renderer — comment clarified (patches address, not immediate)
+- Magic constants (&02, &04) in sprite init — now explain they skip chain terminators
+
+**Other fixes:**
+- IRQ entry comment: "Restore A" → "Load A saved by MOS IRQ dispatcher"
+- Stale hardcoded address comments removed (IRQ1V hex values, string pointer addresses)
+- CRTC register table annotated with per-register descriptions
+- `str_power_off` marked as unused cut feature
+- `halt` label for unreachable JMP-to-self (was misleadingly called `load_level_map`)
+
 ## What Remains
 
 - Full annotation of the setup code at &1100-&12FF
 - The relationship between the three tunes and game states
-- Some data/code overlap areas: `read_key` through `get_tile_type` is EQUB data that encodes multiple short routines — needs proper disassembly
 - `game_routines_2` padding bytes between `set_palette` and `wait_vsync`
+- Third review agent (game.asm lines 900+) results still pending
