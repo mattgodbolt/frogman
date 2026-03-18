@@ -309,6 +309,18 @@ Booted `frogman_rebuilt.ssd` on a BBC Model B (DFS 1.2) in jsbeeb. It works perf
 
 This is a nice side effect of the reverse engineering — the rebuilt disc runs on hardware the original never supported!
 
+## Entry 21: Title Screen Restoration and Remastered Boot Sequence
+
+Reinstated the full original boot experience:
+
+1. **Mode 7 credits screen** — decoded the original Ribbit BASIC loader's teletext graphics (large green block-letter FROGMAN logo, red separator bars, cyan credits, magenta copyright) by reading the tokenized BASIC directly. Added "Remastered 2026" in blue.
+
+2. **Level select** — "Choose level (1 or 2):" with coloured text matching the original.
+
+3. **Mode 2 title screen** — disassembled the original setup code at &1100, extracted the RLE decompressor (3 token types: literal copy, repeat fill, page fill), and wrote `setup.asm` as a clean standalone version at &0900. Loads and decompresses Data2 to display the pixel-art FROG MAN title with the green frog.
+
+4. **Clean transitions** — blanks display via CRTC R1=0 before mode switches, clears screen memory (&3000-&7FFF) manually after SPACE to prevent garbage when the game reconfigures CRTC to its custom layout.
+
 ## What Remains
 
-- Full annotation of the setup code at &1100-&12FF
+- Full annotation of the setup code at &1100-&12FF (partially done — RLE decompressor understood and reimplemented)
