@@ -47,10 +47,10 @@ INCLUDE "tables.asm"
     STX bc_restore_x + 1        ; Save X into self-mod operand
     TAY                         ; Tile index -> Y for LUT lookup
     LDA tile_src_lo,Y                 ; Tile graphics source low byte
-    STA &00                     ; Tile source pointer low
+    STA zp_src_lo                     ; Tile source pointer low
     LDA tile_src_hi,Y                 ; Tile graphics source high byte
-    STA &01                     ; Tile source pointer high
-    JSR calc_screen_addr        ; Calculate screen dest address -> &02/&03
+    STA zp_src_hi                     ; Tile source pointer high
+    JSR calc_screen_addr        ; Calculate screen dest address
     LDX #&01                    ; Copy 2 rows (counter: 1, 0)
 
 ; Fully unrolled 32-byte copy — speed-critical inner loop.
@@ -58,19 +58,19 @@ INCLUDE "tables.asm"
 .bc_copy_loop
     LDY #&00                    ; Reset byte offset for each row
     FOR n, 1, 32
-        LDA (&00),Y : STA (&02),Y : INY
+        LDA (zp_src_lo),Y : STA (zp_dst_lo),Y : INY
     NEXT
 
     ; Advance source by 32 bytes
     CLC
-    LDA &00
+    LDA zp_src_lo
     ADC #&20
-    STA &00
+    STA zp_src_lo
     BCC bc_no_carry
-    INC &01
+    INC zp_src_hi
 .bc_no_carry
-    INC &03                     ; Dest high += 2 (next character row)
-    INC &03
+    INC zp_dst_hi                     ; Dest high += 2 (next character row)
+    INC zp_dst_hi
 
     DEX
     BMI bc_done                 ; Both rows done
@@ -84,42 +84,42 @@ INCLUDE "tables.asm"
     RTS
 
 ; === Calculate Screen Address ===
-; Input: &0A = tile X, &0B = tile Y
-; Output: &02/&03 = screen memory address
+; Input: zp_tile_x, zp_tile_y
+; Output: zp_dst_lo/zp_dst_hi = screen memory address
 ; Screen display base is &5800 (custom CRTC configuration).
 ; Calculates: addr_hi = (tile_Y * 2) + &58 + hi(tile_X * 8), addr_lo = lo(tile_X * 8)
 
 .calc_screen_addr
-    LDA &0A                     ; Tile X
-    STA &02
+    LDA zp_tile_x                     ; Tile X
+    STA zp_dst_lo
     LDA #&00
-    ASL &02 : ROL A             ; x2
-    ASL &02 : ROL A             ; x4
-    ASL &02 : ROL A             ; x8
-    STA &03
-    LDA &0B                     ; Tile Y
+    ASL zp_dst_lo : ROL A             ; x2
+    ASL zp_dst_lo : ROL A             ; x4
+    ASL zp_dst_lo : ROL A             ; x8
+    STA zp_dst_hi
+    LDA zp_tile_y                     ; Tile Y
     ASL A                       ; x2
-    ADC &03
+    ADC zp_dst_hi
     ADC #&58                    ; Screen display base &5800
-    STA &03
+    STA zp_dst_hi
     RTS
 
 ; === Setup Map Rendering ===
-; Converts scroll position (&13/&14) to map data pointer (&06/&07).
+; Converts scroll position to map data pointer.
 ; Map data is based at &0F00.
 
 .setup_map_render
-    LDA &13                     ; Scroll position low
-    STA &07
+    LDA zp_map_scroll_x                     ; Scroll position low
+    STA zp_map_src_hi
     LDA #&00
-    LSR &07                     ; Divide by 2
+    LSR zp_map_src_hi                     ; Divide by 2
     ROR A                       ; Remainder -> A
-    STA &06                     ; Map pointer low
-    LDA &14                     ; Scroll position high
+    STA zp_map_src_lo                     ; Map pointer low
+    LDA zp_map_scroll_y                     ; Scroll position high
     ASL A : ASL A               ; x4
-    ADC &07
+    ADC zp_map_src_hi
     ADC #&0F                    ; Map base = &0F00
-    STA &07                     ; Map pointer high
+    STA zp_map_src_hi                     ; Map pointer high
     ; Falls through to render_map
 
 ; === Render Map ===
@@ -127,25 +127,25 @@ INCLUDE "tables.asm"
 
 .render_map
     LDA #&00
-    STA &0A                     ; Column = 0
-    STA &0B                     ; Row = 0
+    STA zp_tile_x                     ; Column = 0
+    STA zp_tile_y                     ; Row = 0
     LDY #&00                    ; Map offset
 
 .render_loop
-    LDA (&06),Y                 ; Read tile index
+    LDA (zp_map_src_lo),Y                 ; Read tile index
     JSR block_copy              ; Draw tile
     INY
     CLC
-    LDA &0A
+    LDA zp_tile_x
     ADC #&04                    ; Next column (+4 per tile)
-    STA &0A
+    STA zp_tile_x
     CMP #&40                    ; End of row?
     BNE render_loop
 
     LDA #&00
-    STA &0A                     ; Reset column
-    INC &0B : INC &0B           ; Next row (+2)
-    LDA &0B
+    STA zp_tile_x                     ; Reset column
+    INC zp_tile_y : INC zp_tile_y           ; Next row (+2)
+    LDA zp_tile_y
     CMP #&10                    ; All rows done?
     BNE render_loop
     RTS
@@ -517,17 +517,17 @@ INCLUDE "tables.asm"
 ; the current level number (&19) to select the tile set.
 
 .tile_addr_setup
-    LDY &19                     ; Current level number
+    LDY zp_direction                     ; TODO: investigate — &19 used as level number here but as direction flags in game code. Likely double-duty variable.
     LDA tile_col_lut,Y                 ; Level-indexed column offset
     STA tile_gfx_load + 1       ; Patch address low byte
     LDA #&37                    ; Tile graphics at &3700
     STA tile_gfx_load + 2       ; Patch address high byte
     BNE tile_render             ; Always branches (A=&37)
 
-    ; Alternative entry: caller provides custom tile address in &00/&01
-    LDA &00
+    ; Alternative entry: caller provides custom tile address in zp_src_lo/hi
+    LDA zp_src_lo
     STA tile_gfx_load + 1
-    LDA &01
+    LDA zp_src_hi
     STA tile_gfx_load + 2
 
 ; === Tile Renderer ===
@@ -535,15 +535,15 @@ INCLUDE "tables.asm"
 ; overlays onto screen content, and writes back.
 
 .tile_render
-    LDA &0F                     ; Tile X coordinate
-    STA &02
+    LDA zp_scroll_x                     ; Tile X coordinate
+    STA zp_dst_lo
     LDA #&00
-    ASL &02 : ROL A             ; x2
-    ASL &02 : ROL A             ; x4
-    ASL &02 : ROL A             ; x8
-    STA &03
+    ASL zp_dst_lo : ROL A             ; x2
+    ASL zp_dst_lo : ROL A             ; x4
+    ASL zp_dst_lo : ROL A             ; x8
+    STA zp_dst_hi
 
-    LDA &10                     ; Tile Y coordinate
+    LDA zp_scroll_y                     ; Tile Y coordinate
     CMP #&A0                    ; Off screen?
     BCC tile_visible
     RTS                         ; Off screen — skip
@@ -553,56 +553,56 @@ INCLUDE "tables.asm"
     LSR A : LSR A               ; /4
     CLC
     ADC #&58                    ; Screen display base &5800
-    ADC &03
-    STA &03                     ; Final screen high byte
+    ADC zp_dst_hi
+    STA zp_dst_hi                     ; Final screen high byte
 
-    LDA &10
+    LDA zp_scroll_y
     AND #&07                    ; Y pixel offset within tile (0-7)
-    STA &15
+    STA zp_tile_y_ofs
 
     LDA #&10                    ; 16 bytes per row pass
-    STA &16                     ; Width step
-    STA &17                     ; Width limit
+    STA zp_tile_width                     ; Width step
+    STA zp_tile_limit                     ; Width limit
     LDA #&04                    ; 4 character rows per tile
-    STA &18                     ; Row counter
+    STA zp_tile_rows                     ; Row counter
 
     LDX #&00                    ; Tile graphics index
 
 .tile_outer
-    LDA &02 : STA &04           ; Screen base X -> working ptr
-    LDA &03 : STA &05           ; Screen base Y -> working ptr
-    LDY &15                     ; Y offset within character cell
+    LDA zp_dst_lo : STA zp_map_ptr_lo     ; Screen base X -> working ptr
+    LDA zp_dst_hi : STA zp_map_ptr_hi     ; Screen base Y -> working ptr
+    LDY zp_tile_y_ofs                     ; Y offset within character cell
 
 .tile_inner
-    LDA (&04),Y                 ; Read screen byte
+    LDA (zp_map_ptr_lo),Y                 ; Read screen byte
     AND #&3F                    ; Mask lower 6 bits
     STA tile_mask + 1           ; Self-mod: AND operand for mask below
 .tile_gfx_load
     LDA &3700,X                 ; Read tile graphics (address is patched!)
 .tile_mask
     AND &0100                   ; AND with mask table on stack page (&0100-&013F, populated at runtime)
-    ORA (&04),Y                 ; OR tile onto screen content
-    STA (&04),Y                 ; Write combined result
+    ORA (zp_map_ptr_lo),Y                 ; OR tile onto screen content
+    STA (zp_map_ptr_lo),Y                 ; Write combined result
 
     INX : INY
-    CPX &17                     ; Reached row width limit?
+    CPX zp_tile_limit                     ; Reached row width limit?
     BEQ tile_next_row
 
     CPY #&08                    ; End of character cell?
     BNE tile_inner
 
     ; Cross character cell boundary
-    INC &05 : INC &05           ; Next character row (+&200)
+    INC zp_map_ptr_hi : INC zp_map_ptr_hi           ; Next character row (+&200)
     LDY #&00
     BEQ tile_inner              ; Always branches
 
 .tile_next_row
-    LDA &02 : ADC #&07 : STA &02  ; Advance 8 bytes to next tile column (carry set from CPX)
+    LDA zp_dst_lo : ADC #&07 : STA zp_dst_lo  ; Advance 8 bytes to next tile column (carry set from CPX)
     BCC tile_no_carry
-    INC &03
+    INC zp_dst_hi
 .tile_no_carry
     CLC
-    LDA &17 : ADC &16 : STA &17   ; Advance width limit
-    DEC &18                     ; Decrement row counter
+    LDA zp_tile_limit : ADC zp_tile_width : STA zp_tile_limit   ; Advance width limit
+    DEC zp_tile_rows                     ; Decrement row counter
     BNE tile_outer              ; More rows — loop back
     RTS

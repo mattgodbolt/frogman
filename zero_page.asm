@@ -34,7 +34,10 @@ ORG &00
 .zp_map_scroll_y SKIP 1         ; Map scroll Y (coarse tiles)
 
 ; --- Tile renderer temporaries ---
-                 SKIP 4
+.zp_tile_y_ofs   SKIP 1         ; Y pixel offset within tile
+.zp_tile_width   SKIP 1         ; Width step for tile loop
+.zp_tile_limit   SKIP 1         ; Width limit counter
+.zp_tile_rows    SKIP 1         ; Row counter
 
 ; --- Game state ---
 .zp_direction    SKIP 1         ; Movement direction flags
@@ -51,3 +54,5 @@ ORG &00
 .zp_lives        SKIP 1         ; Lives remaining
 .zp_palette_count SKIP 1        ; Number of active palette entries for cycling
 .zp_level_char   SKIP 1         ; ASCII level number character ('1' or '2')
+.zp_temp_item    SKIP 1         ; Temporary: item tile being placed
+.zp_temp_type    SKIP 1         ; Temporary: item type being placed

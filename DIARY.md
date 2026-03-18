@@ -165,11 +165,31 @@ Converted game.asm from pure EQUB to proper 6502 instructions with symbolic labe
 - Item system: collect_item, drop_item, clear_tile_pickup
 - Display: draw_digit, draw_string (game_routines_5), draw_status
 
+## Entry 14: Named Zero Page Variables
+
+Replaced all ~500 bare zero page address references in both game.asm and engine.asm with named variables from zero_page.asm. Every `LDA &0C`, `STA &11`, `INC &0B` etc. now reads as `LDA zp_colour_phase`, `STA zp_frog_col`, `INC zp_tile_y`.
+
+Added two new variables discovered during the process:
+- `zp_temp_item` (&27) — temporary storage for item tile being placed
+- `zp_temp_type` (&28) — temporary storage for item type being placed
+
+Named the four tile renderer temporaries (&15-&18) that were previously anonymous `SKIP 4`:
+- `zp_tile_y_ofs` — Y pixel offset within tile
+- `zp_tile_width` — width step for tile loop
+- `zp_tile_limit` — width limit counter
+- `zp_tile_rows` — row counter
+
+Replaced the duplicated zero page usage comment block in game.asm's IRQ handler with a reference to zero_page.asm.
+
+**Issue flagged for investigation:** `&19` (`zp_direction`) is used as movement direction flags throughout game.asm, but the engine's `tile_addr_setup` uses it as a level number index. Likely a double-duty variable (level number set once at init, then reused as direction during gameplay).
+
+**Process note:** After an earlier attempt at bulk replacement went wrong (replacing without verifying), switched to replacing one variable at a time with `./verify.sh` between each. This caught one bug: `STA &0F` replace_all also matched `STA &0F00,X`, mangling it to `STA zp_scroll_x00,X`. Fixed immediately.
+
 ## What Remains
 
-- Convert tile font display strings from wrongly-disassembled instructions to EQUB/TILESTR
-- Remaining data tables still mixed with code (some EQUB in code sections)
-- Engine.asm needs same treatment: OS constants, hardware register names
+- Replace bare absolute addresses in game.asm (engine cross-references like `JSR &0880`)
+- Replace remaining absolute addresses (&0204, &0430, &FE4D etc.) with constants
+- Rename l_XXXX labels to descriptive names (use `{}` scoping and/or anonymous labels)
 - Full annotation of the setup code at &1100-&12FF
-- Rename remaining l_XXXX labels to descriptive names where purpose is clear
+- Investigate &19 double-duty (direction vs level number)
 - The relationship between the three tunes and game states
