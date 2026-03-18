@@ -184,7 +184,7 @@ ORG &4800
     STA zp_item_1               ; Clear item slot 1
     LDA #&09
     STA zp_lives                ; Lives = 9
-    JSR l_550D                   ; Initialise score display
+    JSR fade_out                   ; Initialise score display
     JSR load_level_data                   ; Load level map from disc
     JSR draw_status                   ; Draw status bar
     LDA #&00
@@ -214,9 +214,9 @@ ORG &4800
     LDY #HI(str_press_space)                    ; String pointer high (&546F)
     JSR draw_string                   ; Draw string: "PRESS SPACE TO START"
     LDA #&62
-.l_4A23
+.wait_space
     JSR read_key
-    BPL l_4A23
+    BPL wait_space
 .wait_for_space_done
     LDA #&14
     STA zp_scroll_x
@@ -240,12 +240,12 @@ ORG &4800
     JSR tile_addr_setup    ; engine: tile_addr_setup
     LDA #&70
     JSR read_key
-    BPL l_4A5C
-.l_4A54
+    BPL check_ground
+.wait_escape_release
     JSR read_key
-    BMI l_4A54
+    BMI wait_escape_release
     JMP game_state_handlers
-.l_4A5C
+.check_ground
     JSR get_tile_at_frog
     PHA
     JSR check_tile_solid
@@ -898,7 +898,6 @@ ORG &4800
 ; --- More game logic — movement, collision response ---
 .game_routines_3
     EQUB &4F
-.l_4E69
     EQUB &FE, &60
 .get_tile_type
     EQUB &8C, &7E, &4E, &38
@@ -1134,9 +1133,9 @@ ORG &4800
     STA zp_tile_y
     JSR get_tile_at_pos
     CMP #&06
-    BEQ l_5027
+    BEQ is_ladder
     JMP jump_up
-.l_5027
+.is_ladder
     LDY zp_frog_row
     DEY
     STY zp_tile_y
@@ -1461,11 +1460,12 @@ ORG &4800
 
 ; --- Scrolling routines ---
 .scroll_routines
+{
     LDA zp_item_0,X
     STX item_slot_select + 1
-    BEQ l_528F
+    BEQ no_item
     JMP game_routines_4
-.l_528F
+.no_item
     LDA zp_frog_col
     STA zp_tile_x
     LDA zp_frog_row
@@ -1474,16 +1474,16 @@ ORG &4800
     BEQ item_slot_select
     LDA zp_direction
     AND #&02
-    BEQ l_52AA
+    BEQ facing_right
     LDY zp_frog_col
     DEY
     STY zp_tile_x
-    JMP l_52AF
-.l_52AA
+    JMP check_side
+.facing_right
     LDY zp_frog_col
     INY
     STY zp_tile_x
-.l_52AF
+.check_side
     LDA zp_frog_row
     STA zp_tile_y
     JSR check_tile_passable
@@ -1494,20 +1494,22 @@ ORG &4800
     INY
     STY zp_tile_y
     JSR check_tile_passable
-    BNE l_52D5
-.item_slot_select
+    BNE done
+.*item_slot_select
     LDX #&00
     STA zp_item_0,X
     LDA #&00
     JSR set_tile_at_pos
     JSR tile_addr_setup    ; engine: tile_addr_setup
     JSR draw_status
-.l_52D5
+.done
     JMP main_loop
+}
 .check_tile_passable
+{
     JSR get_tile_at_pos
     CMP #&20
-    BCC l_52EC
+    BCC simple
     PHA
     JSR get_tile_type
     TAX
@@ -1516,9 +1518,10 @@ ORG &4800
     PLA
     CPY #&00
     RTS
-.l_52EC
+.simple
     LDA #&01
     RTS
+}
 .collision_check_table
 
 ; --- Collision table (data) ---
@@ -1541,15 +1544,15 @@ ORG &4800
     JSR get_tile_type
     STA zp_temp_type
     CMP #&04
-    BEQ l_533C
+    BEQ do_place
     CMP #&03
-    BEQ l_533C
+    BEQ do_place
     DEC zp_tile_y
     BMI drop_item_done
     JSR get_tile_at_pos
     JSR check_tile_solid
     BEQ drop_item_done
-.l_533C
+.do_place
     JSR update_frog_tile
     LDA zp_frog_col
     STA zp_tile_x
@@ -1559,15 +1562,15 @@ ORG &4800
     JSR set_tile_at_pos
     LDA zp_temp_type
     CMP #&04
-    BEQ l_535F
+    BEQ clear_slot
     CMP #&03
-    BEQ l_535F
+    BEQ clear_slot
     DEC zp_frog_row
     SEC
     LDA zp_scroll_y
     SBC #&10
     STA zp_scroll_y
-.l_535F
+.clear_slot
     LDA #&00
     STA zp_item_0,X
     JSR tile_addr_setup    ; engine: tile_addr_setup
@@ -1575,23 +1578,25 @@ ORG &4800
 .drop_item_done
     JMP main_loop
 .collect_item
+{
     PHA
     LDX #&00
-.l_536F
+.loop
     LDA zp_tile_data
     CMP zp_item_0,X
-    BEQ l_537C
+    BEQ found
     INX
     CPX #&02
-    BNE l_536F
+    BNE loop
     PLA
     RTS
-.l_537C
+.found
     INC zp_item_0,X
     JSR draw_status
     JSR silence_all
     PLA
     RTS
+}
 .clear_tile_pickup
     PHA
     LDA zp_frog_col
@@ -1605,18 +1610,19 @@ ORG &4800
     PLA
     RTS
 .drop_item
+{
     PHA
     LDX #&00
-.l_539F
+.loop
     LDA zp_tile_data
     CMP zp_item_0,X
-    BEQ l_53AC
+    BEQ found
     INX
     CPX #&02
-    BNE l_539F
+    BNE loop
     PLA
     RTS
-.l_53AC
+.found
     LDA #&00
     STA zp_item_0,X
     JSR draw_status
@@ -1641,18 +1647,19 @@ ORG &4800
     LDX #&14
     JSR wait_frames
     LDX #&06
-.l_53DE
-    STX l_53EB + 1
+.flash_loop
+    STX restore_x + 1
     LDA #&00
     JSR set_palette
     LDX #&05
     JSR wait_frames
-.l_53EB
+.restore_x
     LDX #&00
     DEX
-    BPL l_53DE
+    BPL flash_loop
     PLA
     RTS
+}
 .wait_frames
     JSR wait_vsync
     DEX
@@ -1660,7 +1667,7 @@ ORG &4800
     RTS
 .place_tile_1c
     LDA #&1C
-.l_53FB
+.place_tile_below
     PHA
     LDA zp_frog_col
     STA zp_tile_x
@@ -1672,11 +1679,12 @@ ORG &4800
     JMP scan_keys
 .place_tile_1d
     LDA #&1D
-    JMP l_53FB
+    JMP place_tile_below
 .place_tile_00
     LDA #&00
-    JMP l_53FB
+    JMP place_tile_below
 .draw_digit
+{
     STA zp_src_lo
     LDA #&00
     ASL zp_src_lo
@@ -1698,17 +1706,18 @@ ORG &4800
     JSR jmp_calc_scrn_addr    ; engine: calc_screen_addr
     LDX zp_text_colour
     LDY #&0F
-.l_543C
+.loop
     LDA (zp_src_lo),Y
     AND digit_mask_table,X
     STA (zp_dst_lo),Y
     DEY
-    BPL l_543C
+    BPL loop
     CLC
     LDA zp_tile_x
     ADC #&02
     STA zp_tile_x
     RTS
+}
 .digit_mask_table
 
 ; --- Palette and sprite data tables ---
@@ -1717,7 +1726,7 @@ ORG &4800
     EQUB &24, &25, &0F, &1B, &18, &10, &16, &0A
     EQUB &17, &25, &25, &0B, &22, &25, &16, &10
     EQUB &25, &24, &25, &1B, &1D, &20, &25, &24
-.l_546E
+.str_title_end
     EQUB &FF
 .str_press_space
     EQUB &24, &25, &19, &1B, &0E, &1C, &1C
@@ -1727,24 +1736,27 @@ ORG &4800
 
 ; --- More rendering and string display ---
 .draw_string
+{
     STX zp_map_ptr_lo
     STY zp_map_ptr_hi
     LDY #&00
-.l_548E
-    STY l_5498 + 1
+.loop
+    STY restore_y + 1
     LDA (zp_map_ptr_lo),Y
-    BMI l_549D
+    BMI done
     JSR draw_digit
-.l_5498
+.restore_y
     LDY #&00
     INY
-    BNE l_548E
-.l_549D
+    BNE loop
+.done
     RTS
+}
 .handle_map_reveal
-    JSR l_550D
+{
+    JSR fade_out
     LDA zp_game_state
-    BNE l_54E3
+    BNE restore
     LDA #&81
     STA zp_game_state
     LDA zp_frog_col
@@ -1755,7 +1767,7 @@ ORG &4800
     STA zp_frog_col
     LDA #&06
     STA zp_frog_row
-    JSR l_54FE
+    JSR calc_scroll_pos
     LDA #&00
     STA zp_map_src_lo
     LDA #&03
@@ -1763,19 +1775,19 @@ ORG &4800
     JSR jmp_render_map    ; engine: render_map
     JSR tile_addr_setup    ; engine: tile_addr_setup
     LDX #&00
-.l_54CC
+.check_items
     LDA zp_item_0,X
     CMP #&38
-    BCC l_54D5
-    JSR l_5578
-.l_54D5
+    BCC next_item
+    JSR place_terminal
+.next_item
     INX
     CPX #&02
-    BNE l_54CC
+    BNE check_items
     JSR draw_status
     JSR draw_title
     JMP main_loop
-.l_54E3
+.restore
     LDA #&80
     STA zp_game_state
     LDA zp_save_col
@@ -1783,11 +1795,13 @@ ORG &4800
     LDA zp_save_row
     STA zp_frog_row
     JSR jmp_setup_map    ; engine: setup_map_render
-    JSR l_54FE
+    JSR calc_scroll_pos
     JSR tile_addr_setup    ; engine: tile_addr_setup
     JSR draw_title
     JMP main_loop
-.l_54FE
+}
+.calc_scroll_pos
+{
     LDA zp_frog_col
     ASL A
     ASL A
@@ -1799,32 +1813,35 @@ ORG &4800
     ASL A
     STA zp_scroll_y
     RTS
-.l_550D
+}
+.fade_out
+{
     LDX #&07
-.l_550F
+.init
     TXA
     STA palette_fade_table,X
     DEX
-    BPL l_550F
-.l_5516
+    BPL init
+.step
     LDX #&07
-.l_5518
+.loop
     LDA palette_fade_table,X
-    BEQ l_5523
+    BEQ skip
     TAY
     DEY
     TYA
     STA palette_fade_table,X
-.l_5523
+.skip
     DEX
-    BPL l_5518
+    BPL loop
     LDX #&04
     JSR wait_frames
-    JSR l_5540
+    JSR apply_palette
     LDA palette_fade_last
-    BNE l_5516
+    BNE step
     LDX #&32
     JMP wait_frames
+}
 .palette_fade_table
     BRK
     BRK
@@ -1835,56 +1852,62 @@ ORG &4800
     BRK
 .palette_fade_last
     BRK
-.l_5540
+.apply_palette
+{
     LDY #&07
     LDA palette_fade_table,Y
     STA zp_palette_count
-.l_5547
+.loop
     LDA palette_fade_table,Y
     TAX
     TYA
     JSR set_palette
     DEY
-    BNE l_5547
+    BNE loop
     RTS
+}
 .draw_title
+{
     LDX #&07
-.l_5555
-    STX l_555B + 1
+.step
+    STX restore_x + 1
     LDA palette_fade_table,X
-.l_555B
+.restore_x
     CMP #&00
-    BEQ l_5565
+    BEQ skip
     TAY
     INY
     TYA
     STA palette_fade_table,X
-.l_5565
+.skip
     DEX
-    BPL l_5555
+    BPL step
     LDX #&04
     JSR wait_frames
-    JSR l_5540
+    JSR apply_palette
     LDA palette_fade_last
     CMP #&07
     BNE draw_title
     RTS
-.l_5578
+}
+.place_terminal
+{
     SEC
     PHA
-    STX l_5589 + 1
+    STX restore_x + 1
     SBC #&31
     STA zp_tile_x
     LDA #&06
     STA zp_tile_y
     PLA
     JSR set_tile_at_pos
-.l_5589
+.restore_x
     LDX #&00
     LDA #&00
     STA zp_item_0,X
     INC zp_terminal_ctr
     RTS
+}
 ; --- Display strings (tile font: A=&0A..Z=&23, space=&25, *=&24, &FF=end) ---
 .str_special_msg                ; "* POWER CONTROL TERMINAL *"
     EQUB &24, &25, &19, &18, &20, &0E, &1B, &25
@@ -1903,12 +1926,13 @@ ORG &4800
     EQUB &0E, &0A, &0C, &1D, &12, &1F, &0A, &1D
     EQUB &0E, &0D, &25, &24, &FF
 .handle_special_tile
+{
     PHA
     LDA zp_special_flag
-    BEQ l_55EA
+    BEQ first_visit
     PLA
     JMP check_passthrough
-.l_55EA
+.first_visit
     LDA #&FF
     STA zp_special_flag
     LDA #&07
@@ -1922,8 +1946,8 @@ ORG &4800
     JSR draw_string
     LDA zp_terminal_ctr
     CMP #&08
-    BCS l_5625
-.l_5607
+    BCS all_collected
+.show_denied
     LDA #&01
     STA zp_text_colour
     LDA #&0D
@@ -1937,9 +1961,9 @@ ORG &4800
     JSR wait_frames
     JSR jmp_render_map    ; engine: render_map
     JMP main_loop
-.l_5625
+.all_collected
     LDA zp_game_state
-    BNE l_5648
+    BNE already_done
     LDA #&02
     STA zp_text_colour
     LDA #&06
@@ -1954,9 +1978,10 @@ ORG &4800
     LDA #&FF
     STA zp_terminal_ctr
     JMP main_loop
-.l_5648
+.already_done
     LDA zp_terminal_ctr
-    BPL l_5607
+    BPL show_denied
+}
 
 ; --- Level map loading from disc ---
 .load_level_map
@@ -1968,10 +1993,10 @@ ORG &4800
     LDX #LO(oscli_disc)
     LDY #HI(oscli_disc)
     JSR OSCLI
-    JMP l_5665
+    JMP load_level_m
 .oscli_disc
     EQUS "DISC", 13
-.l_5665
+.load_level_m
     LDA zp_level_char
     STA oscli_level_m_num
     LDX #LO(oscli_load_level_m)

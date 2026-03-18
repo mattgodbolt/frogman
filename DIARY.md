@@ -185,11 +185,30 @@ Replaced the duplicated zero page usage comment block in game.asm's IRQ handler 
 
 **Process note:** After an earlier attempt at bulk replacement went wrong (replacing without verifying), switched to replacing one variable at a time with `./verify.sh` between each. This caught one bug: `STA &0F` replace_all also matched `STA &0F00,X`, mangling it to `STA zp_scroll_x00,X`. Fixed immediately.
 
+## Entry 15: All Labels Named and Scoped
+
+Replaced all 175 `l_XXXX` address-based labels with descriptive names. Applied BeebASM `{}` scoping throughout game.asm to contain internal branch targets as local labels. Key routines now read naturally:
+
+- `move_down` / `move_right` — with `.anim_8`, `.anim_4`, `.scroll_right`/`.scroll_left`
+- `move_up_check` — `.climb_left_step`, `.climb_right_step`, `.climb_ladder`, `.jump_up`
+- `convey_right` / `convey_left` — conveyor belt movement routines
+- `check_gravity` — `.check_fall`, `.start_fall`, `.scroll_down`
+- `handle_map_reveal` — `.fade_out`, `.apply_palette`, `.calc_scroll_pos`
+- `handle_special_tile` — `.first_visit`, `.show_denied`, `.all_collected`
+- `game_state_handlers` — `.sink_loop`, `.check_lives`, `.game_over`
+- `scan_keys` — `.not_down`, `.not_right`, `.not_up`, `.no_scroll`
+- All utility routines: `get_tile_at_frog`, `check_tile_solid`, `get_tile_at_pos`, `check_tile_passable`, `collect_item`, `drop_item`, `draw_digit`, `draw_string`
+
+Used `.*label` sparingly for labels that need global visibility from within a scope (e.g. `.*check_fall`, `.*scroll_right`, `.*scroll_left`, `.*item_slot_select`, `.*update_frog_tile`).
+
+Engine cross-references now use jump table labels (`jmp_block_copy`, `jmp_render_map`, etc.) and `tile_addr_setup`/`tile_addr_setup_y`. Hardware registers use named constants.
+
+**Final count: 0 unnamed labels, 0 bare zero page references.**
+
 ## What Remains
 
-- Replace bare absolute addresses in game.asm (engine cross-references like `JSR &0880`)
-- Replace remaining absolute addresses (&0204, &0430, &FE4D etc.) with constants
-- Rename l_XXXX labels to descriptive names (use `{}` scoping and/or anonymous labels)
+- Data-region absolute addresses in copy loops (&5800, &0700, &0600, &0D00 etc.) — these are inherent to the memory map
 - Full annotation of the setup code at &1100-&12FF
 - Investigate &19 double-duty (direction vs level number)
 - The relationship between the three tunes and game states
+- Some data/code overlap areas still have misleading disassembly (e.g. `game_routines_1` EQUB data interpreted as instructions)
