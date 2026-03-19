@@ -8,7 +8,7 @@ All indexed tiles in order, rendered with correct Mode 2 aspect ratio:
 
 | Tile | Sprite | Identity | Type | Notes |
 |------|--------|----------|------|-------|
-| &20 | ![](docs/tile_20.png) | *(type table data)* | — | Not a visible tile; pixel data encodes type lookup |
+| &20 | *(n/a)* | *(type table data)* | — | Not a visible tile; pixel data encodes type lookup |
 | &21 | ![](docs/tile_21.png) | **White Key** | 0 | Pickupable. Hold → pass through White Door (&23) |
 | &22 | ![](docs/tile_22.png) | *(barrier)* | 5 | Passable when holding Rabbit (&35) |
 | &23 | ![](docs/tile_23.png) | **White Door** | 7 | Barrier → passable when holding White Key (&21) |

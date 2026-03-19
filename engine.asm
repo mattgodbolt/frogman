@@ -104,17 +104,17 @@ INCLUDE "tables.asm"
     RTS
 
 ; === Setup Map Rendering ===
-; Converts scroll position to map data pointer.
+; Converts current screen position to map data pointer.
 ; Map data is based at &0F00.
 
 .setup_map_render
-    LDA zp_map_scroll_x                     ; Will become high byte bits after /2
+    LDA zp_screen_x                     ; Will become high byte bits after /2
     STA zp_map_src_hi
     LDA #&00
     LSR zp_map_src_hi                     ; Divide by 2
     ROR A                       ; Remainder -> A
     STA zp_map_src_lo                     ; Map pointer low
-    LDA zp_map_scroll_y                     ; Scroll position high
+    LDA zp_screen_y                     ; Screen row in map grid
     ASL A : ASL A               ; x4
     ADC zp_map_src_hi
     ADC #&0F                    ; Map base = &0F00
@@ -178,7 +178,7 @@ INCLUDE "tables.asm"
 
 .anim_frame_data
     AND #&7F                    ; Strip high bit
-    STA zp_snd_tmp_frame                     ; Store frame byte
+    STA zp_snd_tmp_token                     ; Store frame byte
     INY
     LDA anim_timing_const                   ; Global note timing constant
     STA zp_snd_tmp_timer                     ; Note duration
@@ -209,18 +209,18 @@ INCLUDE "tables.asm"
 ; Frequency: upper nibble >> 4. Volume: bits 3:2 >> 2.
 
 .anim_apply_data
-    LDA zp_snd_tmp_frame
+    LDA zp_snd_tmp_token
     AND #&02                    ; Test bit 1
     BNE anim_set_horiz
 
-    LDA zp_snd_tmp_frame
+    LDA zp_snd_tmp_token
     LSR A : LSR A : LSR A : LSR A
     STA channel_freq_param,X                 ; Frequency parameter
     INY
     JMP read_music_token
 
 .anim_set_horiz
-    LDA zp_snd_tmp_frame
+    LDA zp_snd_tmp_token
     LSR A : LSR A
     STA channel_vol_param,X                 ; Volume parameter
     INY
@@ -252,11 +252,11 @@ INCLUDE "tables.asm"
 
 .read_music_token
     LDA (zp_snd_data_lo),Y                 ; Read token from music stream
-    STA zp_snd_tmp_frame
+    STA zp_snd_tmp_token
     AND #&01                    ; Test bit 0
     BNE anim_apply_data         ; Direction/speed change
 
-    LDA zp_snd_tmp_frame
+    LDA zp_snd_tmp_token
     BMI parse_anim_token        ; Special token (&FC/&FA/&FE)
 
     ; Normal frame: read duration
@@ -416,11 +416,11 @@ INCLUDE "tables.asm"
 
 ; === Init Sound Channel ===
 ; Initializes a sound channel with frequency, volume, and envelope data.
-; Entry: zp_snd_tmp_timer, zp_snd_tmp_frame, zp_snd_tmp_speed, Y=sequence index, X=channel
+; Entry: zp_snd_tmp_timer, zp_snd_tmp_token, zp_snd_tmp_speed, Y=sequence index, X=channel
 
 .init_channel
     LDA zp_snd_tmp_timer : STA zp_snd_timer,X         ; Set note duration
-    LDA zp_snd_tmp_frame : ASL A : STA zp_snd_freq,X ; Frequency value × 2
+    LDA zp_snd_tmp_token : ASL A : STA zp_snd_freq,X ; Frequency value × 2
     LDA zp_snd_tmp_speed                     ; Volume level
     ASL A : ASL A : ASL A : ASL A  ; × 16 for envelope resolution
     STA zp_snd_vol,X                   ; Volume envelope position
@@ -541,7 +541,7 @@ INCLUDE "tables.asm"
 ; overlays onto screen content, and writes back.
 
 .tile_render
-    LDA zp_scroll_x                     ; Tile X coordinate
+    LDA zp_frog_x                     ; Tile X coordinate
     STA zp_dst_lo
     LDA #&00
     ASL zp_dst_lo : ROL A             ; x2
@@ -549,7 +549,7 @@ INCLUDE "tables.asm"
     ASL zp_dst_lo : ROL A             ; x8
     STA zp_dst_hi
 
-    LDA zp_scroll_y                     ; Tile Y coordinate
+    LDA zp_frog_y                     ; Tile Y coordinate
     CMP #&A0                    ; Off screen?
     BCC tile_visible
     RTS                         ; Off screen — skip
@@ -562,7 +562,7 @@ INCLUDE "tables.asm"
     ADC zp_dst_hi
     STA zp_dst_hi                     ; Final screen high byte
 
-    LDA zp_scroll_y
+    LDA zp_frog_y
     AND #&07                    ; Y pixel offset within tile (0-7)
     STA zp_tile_y_ofs
 
