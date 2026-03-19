@@ -16,10 +16,11 @@ INCLUDE "tables.asm"
 ; ############################################################################
 ; GAME ENGINE
 ; ############################################################################
-; 1018 bytes implementing the complete game logic:
-;   - Tile rendering (flip-screen)
-;   - Music/sound engine (4-channel sequencer via SN76489)
-;   - Game initialization
+; Subroutines called by the game code (Gcode) via the jump table below:
+;   - Tile rendering (block_copy, calc_screen_addr, render_map)
+;   - Frog overlay renderer (tile_addr_setup, tile_render)
+;   - 4-channel SN76489 sound sequencer (update_sound, init_channel)
+;   - VIA port configuration for sound chip access
 ;
 ; Sound state uses X-indexed zero page arrays for 4 channels.
 ; ############################################################################
@@ -31,7 +32,7 @@ INCLUDE "tables.asm"
 .jmp_calc_scrn_addr : JMP calc_screen_addr
 .jmp_setup_map      : JMP setup_map_render
 .jmp_render_map     : JMP render_map
-.jmp_init_channel   : JMP init_channel     ; (unused — called directly)
+.jmp_init_channel   : JMP init_channel     ; Not called via table; init_channel called directly
 .jmp_update_sound : JMP update_sound
 .jmp_init_game      : JMP init_game
 
@@ -103,17 +104,17 @@ INCLUDE "tables.asm"
     RTS
 
 ; === Setup Map Rendering ===
-; Converts scroll position to map data pointer.
+; Converts current screen position to map data pointer.
 ; Map data is based at &0F00.
 
 .setup_map_render
-    LDA zp_map_scroll_x                     ; Will become high byte bits after /2
+    LDA zp_screen_x                     ; Will become high byte bits after /2
     STA zp_map_src_hi
     LDA #&00
     LSR zp_map_src_hi                     ; Divide by 2
     ROR A                       ; Remainder -> A
     STA zp_map_src_lo                     ; Map pointer low
-    LDA zp_map_scroll_y                     ; Scroll position high
+    LDA zp_screen_y                     ; Screen row in map grid
     ASL A : ASL A               ; x4
     ADC zp_map_src_hi
     ADC #&0F                    ; Map base = &0F00
@@ -177,7 +178,7 @@ INCLUDE "tables.asm"
 
 .anim_frame_data
     AND #&7F                    ; Strip high bit
-    STA zp_snd_tmp_frame                     ; Store frame byte
+    STA zp_snd_tmp_token                     ; Store frame byte
     INY
     LDA anim_timing_const                   ; Global note timing constant
     STA zp_snd_tmp_timer                     ; Note duration
@@ -208,18 +209,18 @@ INCLUDE "tables.asm"
 ; Frequency: upper nibble >> 4. Volume: bits 3:2 >> 2.
 
 .anim_apply_data
-    LDA zp_snd_tmp_frame
+    LDA zp_snd_tmp_token
     AND #&02                    ; Test bit 1
     BNE anim_set_horiz
 
-    LDA zp_snd_tmp_frame
+    LDA zp_snd_tmp_token
     LSR A : LSR A : LSR A : LSR A
     STA channel_freq_param,X                 ; Frequency parameter
     INY
     JMP read_music_token
 
 .anim_set_horiz
-    LDA zp_snd_tmp_frame
+    LDA zp_snd_tmp_token
     LSR A : LSR A
     STA channel_vol_param,X                 ; Volume parameter
     INY
@@ -251,11 +252,11 @@ INCLUDE "tables.asm"
 
 .read_music_token
     LDA (zp_snd_data_lo),Y                 ; Read token from music stream
-    STA zp_snd_tmp_frame
+    STA zp_snd_tmp_token
     AND #&01                    ; Test bit 0
     BNE anim_apply_data         ; Direction/speed change
 
-    LDA zp_snd_tmp_frame
+    LDA zp_snd_tmp_token
     BMI parse_anim_token        ; Special token (&FC/&FA/&FE)
 
     ; Normal frame: read duration
@@ -370,14 +371,17 @@ INCLUDE "tables.asm"
 
 ; === Set Tone ===
 ; Sends SN76489 frequency latch byte (1 cc 0 dddd), then a second
-; frequency data byte from the physics table.
+; frequency data byte. Both tables in tables.asm are indexed by Y
+; (the frequency value from the envelope).
+; palette_tables provides the low nibble of the latch byte.
+; freq_divider_table provides the upper frequency data byte.
 
 .set_tone
     TAY
     LDA channel_freq_regs,X     ; Frequency register byte (&E0/&C0/&A0/&80)
-    ORA palette_tables,Y        ; OR in low nibble from palette table
+    ORA palette_tables,Y        ; OR in low nibble (dual-use: palette + freq data)
     JSR sn76489_write            ; Send frequency latch
-    LDA physics_table,Y         ; Second byte from physics table
+    LDA freq_divider_table,Y    ; Frequency divider high byte
     JMP sn76489_write            ; Send frequency data
 
 ; === Set Volume ===
@@ -412,11 +416,11 @@ INCLUDE "tables.asm"
 
 ; === Init Sound Channel ===
 ; Initializes a sound channel with frequency, volume, and envelope data.
-; Entry: zp_snd_tmp_timer, zp_snd_tmp_frame, zp_snd_tmp_speed, Y=sequence index, X=channel
+; Entry: zp_snd_tmp_timer, zp_snd_tmp_token, zp_snd_tmp_speed, Y=sequence index, X=channel
 
 .init_channel
     LDA zp_snd_tmp_timer : STA zp_snd_timer,X         ; Set note duration
-    LDA zp_snd_tmp_frame : ASL A : STA zp_snd_freq,X ; Frequency value × 2
+    LDA zp_snd_tmp_token : ASL A : STA zp_snd_freq,X ; Frequency value × 2
     LDA zp_snd_tmp_speed                     ; Volume level
     ASL A : ASL A : ASL A : ASL A  ; × 16 for envelope resolution
     STA zp_snd_vol,X                   ; Volume envelope position
@@ -461,51 +465,52 @@ INCLUDE "tables.asm"
     EQUW move_seq_6             ; Seq 6
 
 ; === Envelope Sequences ===
-; Frequency/volume delta patterns for sound channels.
-; Each entry is: volume_delta, freq_delta, index_step, sub_count
-; (values like &FD/-3 and &FE/-2 are signed deltas).
-; &FF,&FF at the start of each sequence is a chain terminator for the
-; previous sequence (init_channel sets index=2 to skip past it).
+; Per-frame delta patterns applied to sound channel frequency and volume.
+; Format: vol_delta, freq_delta, index_step, sub_count
+; (values like &FD/-3 and &FE/-2 are signed 8-bit deltas).
+; &FF,&FF at the start of each sequence is the chain terminator —
+; init_channel sets seq_idx=2 to skip past it. When a note ends,
+; the engine reads byte 0; BMI (&FF) means end-of-chain → silence.
 
 .move_seq_0
-    EQUB &FF, &FF               ; Chain terminator (BMI kills sprite reading byte 0)
-    EQUB &28, &00, &04, &04     ; velY=&28, velX=&00
-    EQUB &00, &00, &20, &04     ; Pause
-    EQUB &F6, &00, &10, &04     ; velY=&F6 (-10)
-    EQUB &00, &00, &00, &00     ; Stop
+    EQUB &FF, &FF               ; Chain terminator (byte 0 has bit 7 set → end)
+    EQUB &28, &00, &04, &04     ; vol +&28, freq +0, step 4, for 4 frames
+    EQUB &00, &00, &20, &04     ; Hold (no change), step &20, for 4 frames
+    EQUB &F6, &00, &10, &04     ; vol -10, freq +0, step &10, for 4 frames
+    EQUB &00, &00, &00, &00     ; End (zero sub-count = stop)
 
 .move_seq_1
     EQUB &FF, &FF               ; Chain terminator
-    EQUB &FE, &00, &20, &00     ; velY=&FE (-2), velX=&00
+    EQUB &FE, &00, &20, &00     ; vol -2, freq +0, step &20, immediate
 
 .move_seq_3
     EQUB &FF, &FF               ; Chain terminator
-    EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
-    EQUB &FD, &0C, &00, &04     ; velY=&FD (-3), velX=&0C
-    EQUB &FD, &E0, &00, &F8     ; velY=&FD (-3), velX=&E0
+    EQUB &FD, &14, &00, &04     ; vol -3, freq +&14
+    EQUB &FD, &0C, &00, &04     ; vol -3, freq +&0C
+    EQUB &FD, &E0, &00, &F8     ; vol -3, freq -&20
 
 .move_seq_4
     EQUB &FF, &FF               ; Chain terminator
-    EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
-    EQUB &FD, &08, &00, &04     ; velY=&FD (-3), velX=&08
-    EQUB &FD, &E4, &00, &F8     ; velY=&FD (-3), velX=&E4
+    EQUB &FD, &14, &00, &04     ; vol -3, freq +&14
+    EQUB &FD, &08, &00, &04     ; vol -3, freq +&08
+    EQUB &FD, &E4, &00, &F8     ; vol -3, freq -&1C
 
 .move_seq_2
     EQUB &FF, &FF               ; Chain terminator
-    EQUB &FE, &01, &01, &04     ; velY=&FE (-2), velX=&01
-    EQUB &FE, &FF, &01, &FC     ; velY=&FE (-2), velX=&FF (-1)
+    EQUB &FE, &01, &01, &04     ; vol -2, freq +1, step 1, for 4 frames
+    EQUB &FE, &FF, &01, &FC     ; vol -2, freq -1, step 1, for 252 frames
 
 .move_seq_5
     EQUB &FF, &FF               ; Chain terminator
-    EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
-    EQUB &FD, &10, &00, &04     ; velY=&FD (-3), velX=&10
-    EQUB &FD, &DC, &00, &F8     ; velY=&FD (-3), velX=&DC
+    EQUB &FD, &14, &00, &04     ; vol -3, freq +&14
+    EQUB &FD, &10, &00, &04     ; vol -3, freq +&10
+    EQUB &FD, &DC, &00, &F8     ; vol -3, freq -&24
 
 .move_seq_6
     EQUB &FF, &FF               ; Chain terminator
-    EQUB &FD, &14, &00, &04     ; velY=&FD (-3), velX=&14
-    EQUB &FD, &08, &00, &04     ; velY=&FD (-3), velX=&08
-    EQUB &FD, &E4, &00, &F8     ; velY=&FD (-3), velX=&E4
+    EQUB &FD, &14, &00, &04     ; vol -3, freq +&14
+    EQUB &FD, &08, &00, &04     ; vol -3, freq +&08
+    EQUB &FD, &E4, &00, &F8     ; vol -3, freq -&1C
 
 ; === Tile Column Mini-LUT ===
 .tile_col_lut
@@ -536,7 +541,7 @@ INCLUDE "tables.asm"
 ; overlays onto screen content, and writes back.
 
 .tile_render
-    LDA zp_scroll_x                     ; Tile X coordinate
+    LDA zp_frog_x                     ; Tile X coordinate
     STA zp_dst_lo
     LDA #&00
     ASL zp_dst_lo : ROL A             ; x2
@@ -544,7 +549,7 @@ INCLUDE "tables.asm"
     ASL zp_dst_lo : ROL A             ; x8
     STA zp_dst_hi
 
-    LDA zp_scroll_y                     ; Tile Y coordinate
+    LDA zp_frog_y                     ; Tile Y coordinate
     CMP #&A0                    ; Off screen?
     BCC tile_visible
     RTS                         ; Off screen — skip
@@ -557,7 +562,7 @@ INCLUDE "tables.asm"
     ADC zp_dst_hi
     STA zp_dst_hi                     ; Final screen high byte
 
-    LDA zp_scroll_y
+    LDA zp_frog_y
     AND #&07                    ; Y pixel offset within tile (0-7)
     STA zp_tile_y_ofs
 

@@ -24,14 +24,14 @@ ORG &00
 .zp_colour_phase SKIP 1         ; Colour cycle phase (0-7)
 .zp_palette_idx  SKIP 1         ; Palette entry being animated (8-11)
 .zp_frame_ctr    SKIP 1         ; Frame sub-counter
-.zp_scroll_x     SKIP 1         ; Frog pixel X within current screen
-.zp_scroll_y     SKIP 1         ; Frog pixel Y within current screen
+.zp_frog_x       SKIP 1         ; Frog X in character columns (0-60; 1 tile = 4 cols)
+.zp_frog_y       SKIP 1         ; Frog Y in scanlines (0-127; 1 tile = 16 lines; >=160 off-screen)
 
 ; --- Frog position ---
 .zp_frog_col     SKIP 1         ; Frog tile column within current screen
 .zp_frog_row     SKIP 1         ; Frog tile row within current screen
-.zp_map_scroll_x SKIP 1         ; Current screen X in map
-.zp_map_scroll_y SKIP 1         ; Current screen Y in map
+.zp_screen_x     SKIP 1         ; Current screen column in level map grid
+.zp_screen_y     SKIP 1         ; Current screen row in level map grid
 
 ; --- Tile renderer temporaries ---
 .zp_tile_y_ofs   SKIP 1         ; Y pixel offset within tile
@@ -40,7 +40,7 @@ ORG &00
 .zp_tile_rows    SKIP 1         ; Row counter
 
 ; --- Game state ---
-.zp_direction    SKIP 1         ; Movement direction flags
+.zp_direction    SKIP 1         ; Frog direction: 0=right, 1=right-hop, 2=left, 3=left-hop
 .zp_vsync_flag   SKIP 1         ; Set to &FF each VSYNC, polled by game loop
 .zp_tile_data    SKIP 1         ; Tile data value from map lookup
 .zp_falling      SKIP 1         ; Non-zero when frog is falling
@@ -50,7 +50,7 @@ ORG &00
 .zp_game_state   SKIP 1         ; Game state flags (bit 7 = map revealed)
 .zp_special_flag SKIP 1         ; Special tile interaction flag
 .zp_terminal_ctr SKIP 1         ; Terminal/checkpoint counter
-.zp_music_inhibit SKIP 1       ; Non-zero = skip sprite updates in IRQ
+.zp_music_inhibit SKIP 1       ; Non-zero = skip sound updates in IRQ
 .zp_lives        SKIP 1         ; Lives remaining
 .zp_palette_count SKIP 1        ; Number of active palette entries for cycling
 .zp_level_char   SKIP 1         ; ASCII level number character ('1' or '2')
@@ -59,11 +59,11 @@ ORG &00
 
 ; --- Engine temporaries (used during sound channel update) ---
 ORG &60
-.zp_move_ptr_lo  SKIP 1         ; Current sequence data pointer low
-.zp_move_ptr_hi  SKIP 1         ; Current sequence data pointer high
-.zp_snd_tmp_timer    SKIP 1         ; Channel duration temporary
-.zp_snd_tmp_frame    SKIP 1         ; Channel token/direction temporary
-.zp_snd_tmp_speed    SKIP 1         ; Channel speed temporary
+.zp_move_ptr_lo  SKIP 1         ; Current envelope sequence pointer low
+.zp_move_ptr_hi  SKIP 1         ; Current envelope sequence pointer high
+.zp_snd_tmp_timer    SKIP 1         ; Note duration temporary
+.zp_snd_tmp_token    SKIP 1         ; Music stream token temporary
+.zp_snd_tmp_speed    SKIP 1         ; Volume parameter temporary
 
 ; --- Sound channel state (X-indexed, 4 channels) ---
 ORG &70

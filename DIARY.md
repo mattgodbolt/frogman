@@ -321,6 +321,49 @@ Reinstated the full original boot experience:
 
 4. **Clean transitions** — blanks display via CRTC R1=0 before mode switches, clears screen memory (&3000-&7FFF) manually after SPACE to prevent garbage when the game reconfigures CRTC to its custom layout.
 
+## Entry 22: Comment Audit, Idiomatic BeebASM, and Object System Documentation
+
+Deep review pass over all assembly files, focusing on comment accuracy, idiomatic improvements, and documenting the item/object system.
+
+**Comment fixes across all files:**
+
+- **engine.asm:** Replaced all remaining sprite-era terminology in envelope sequences — "velY/velX" → "vol/freq delta" with proper signed values. Fixed the header to describe subroutines rather than claiming "complete game logic". Clarified the set_tone routine's dual use of palette_tables and renamed `physics_table` → `freq_divider_table` (it provides SN76489 frequency divider high bytes, not physics data).
+
+- **tables.asm:** Rewrote palette table header to explain the dual-use as both colour indices and frequency latch nibbles. Replaced speculative "Bright cycling colours" / "Fade ramp" comments with factual pitch-range descriptions for the frequency divider table.
+
+- **music.asm:** Removed false claim of "encrypted data block" — the data after the tunes is just residual bytes overwritten by Level?T. Removed speculative note annotations ("bass notes", "chord progression"). Documented `anim_timing_const` as level-specific (it lives in the Level?T overwrite region).
+
+- **game.asm:** The most impactful fix — renamed `move_down` → `hop_right` and `move_right` → `hop_left`. The X key hops RIGHT (INC scroll_x, INC frog_col) and Z hops LEFT (DEC scroll_x, DEC frog_col). The original names were backwards, a cascading error from early disassembly. Added per-entry comments to `collision_flags` documenting what each tile is. Documented the inverted collision convention (0=solid, &FF=passable). Added explanatory headers to `check_tile_solid`, `collect_item`, `drop_item`, `handle_map_reveal`, and `handle_special_tile`.
+
+**Key discovery — tile type table is embedded in tile graphics:**
+
+`get_tile_type` reads from &4000, which is tile &20's pixel data. The first 64 bytes of tile 32's graphics serve double duty as the type lookup table for ALL indexed tiles (&20-&3F). Each level's graphics file thus embeds gameplay properties in pixel data — changing Level?G changes both visuals AND item behaviour. This is documented in FORMATS.md.
+
+**Idiomatic BeebASM improvements:**
+
+- Added named constants for all 10 key scan codes (`KEY_X`, `KEY_Z`, `KEY_COLON`, `KEY_SLASH`, `KEY_F0`, `KEY_F1`, `KEY_SPACE`, `KEY_ESCAPE`, `KEY_M`, `KEY_ZERO`) and 17 special tile indices (`TILE_EMPTY` through `TILE_POWER_TERM`).
+- Replaced ~30 magic numbers in game.asm with these constants.
+- Converted 4 display strings from raw EQUB to `TILESTR` macro (`str_title`, `str_press_space`, `str_special_msg`, `str_continue`, `str_well_done`, `str_power_off`).
+- Replaced the 128-byte `tile_source_lut` EQUB block with `FOR/NEXT` loops matching the engine's pattern.
+- All changes verified byte-exact against original binaries.
+
+**Item/object system fully documented (FORMATS.md, LEVEL1_OBJECTS.md):**
+
+Traced all 6 item evolution chains in Level 1, the terminal collection win condition (8 terminals → "LOGGED ON"), and the key/door mechanic. Created a Mermaid DAG showing object dependencies. The item system uses a clever INC-based transformation: walking on a type-9 tile while holding the matching data value increments the slot, creating item chains like &34 → &35 (which then makes barrier tiles passable).
+
+**Visual identification confirmed by the original artist:**
+
+Matt Godbolt provided definitive tile identifications: white key (&21), yellow key (&28), white/yellow doors (&23/&29), carrot (&24), bookshelf (&2A), library ticket (&2B), bible (&2C), cross (&2E), unlit/lit candle (&2F/&30), fire (&31), TNT (&32), magic wand (&34), rabbit (&35), top hat (&36), ring (&37). The magic trick chain is confirmed: wand goes into the top hat → rabbit comes out.
+
+**Purged all "scroll" terminology:**
+
+The game has no scrolling — it's flip-screen. Renamed `zp_scroll_x`/`zp_scroll_y` → `zp_frog_x`/`zp_frog_y` (character columns and scanlines within the current screen), `zp_map_scroll_x`/`zp_map_scroll_y` → `zp_screen_x`/`zp_screen_y` (which screen in the level grid). Also renamed labels: `scroll_down` → `screen_down`, `scroll_step_table` → `hop_arc_table`, `calc_scroll_pos` → `calc_frog_pos`. Zero occurrences of "scroll" remain in any .asm file.
+
+**Fixed collision logic (types 5/7):**
+
+The `check_held` routine returns &FF when the item matches, which is *passable* per the codebase convention (&00=solid, &FF=passable). So types 5/7 tiles are barriers that become passable when you hold the matching item — not platforms that appear. Renamed the misleading `.solid` label to `.held_passable`.
+
 ## What Remains
 
-- Full annotation of the setup code at &1100-&12FF (partially done — RLE decompressor understood and reimplemented)
+- Level 2 object analysis and DAG
+- Full annotation of the setup code at &1100-&12FF
