@@ -512,10 +512,11 @@ ORG &4800
     LDA (zp_map_src_lo),Y
     RTS
 }
-; Returns Z flag: Z=1 (BEQ) = solid ground, Z=0 = passable/open.
+; Returns Z flag: Z=1 (BEQ) = solid/blocking, Z=0 = passable/open.
 ; For simple tiles: reads collision_flags (0=solid, FF=passable).
 ; For typed tiles >= &20: checks tile_type_table, then check_held
-; for types 5 and 7 (tiles that become solid when you hold the matching item).
+; for types 5 and 7 (barrier tiles that become PASSABLE when you hold
+; the matching item — carrying the right object lets you walk through).
 .check_tile_solid
 {
     CMP #&20

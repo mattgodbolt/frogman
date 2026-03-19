@@ -81,16 +81,17 @@ Type codes and their effects:
 | 1    | solid     | yes    | Key — unlocks tile &11 (locked doors)        |
 | 3    | passable  | no     | Solid decoration (blocks falling)            |
 | 4    | passable  | no     | Placeable surface                            |
-| 5    | solid     | no     | Platform-when-held: solid if carrying matching data |
-| 7    | solid     | no     | Platform-when-held: solid if carrying matching data |
-| 8    | passable  | no     | Solid block (can't pick up, blocks falling)  |
+| 5    | solid     | no     | Barrier: becomes PASSABLE when carrying matching data |
+| 7    | solid     | no     | Barrier: becomes PASSABLE when carrying matching data |
+| 8    | passable  | no     | Passable decoration (walk-through, not pickupable) |
 | 9    | passable  | no     | Auto-collect: transforms held item (INC slot)|
 | 11   | solid     | no     | Drop trigger: consumes held item (clears slot)|
 
-**"Platform-when-held" mechanic (types 5, 7):** When `check_tile_solid` evaluates
-these tiles, it compares `zp_tile_data` (the tile's associated data value)
-against `zp_item_0` and `zp_item_1`. If either item slot matches, the tile
-counts as solid ground — effectively creating platforms by carrying the right item.
+**"Barrier-when-not-held" mechanic (types 5, 7):** These tiles are normally
+solid (blocking). When `check_tile_solid` evaluates them, it compares
+`zp_tile_data` against `zp_item_0` and `zp_item_1`. If either item slot
+matches, the tile becomes **passable** — the frog can walk or fall through.
+Carrying the right item effectively removes the barrier.
 
 ## Item System
 
