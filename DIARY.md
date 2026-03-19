@@ -351,8 +351,19 @@ Deep review pass over all assembly files, focusing on comment accuracy, idiomati
 
 Traced all 6 item evolution chains in Level 1, the terminal collection win condition (8 terminals → "LOGGED ON"), and the key/door mechanic. Created a Mermaid DAG showing object dependencies. The item system uses a clever INC-based transformation: walking on a type-9 tile while holding the matching data value increments the slot, creating item chains like &34 → &35 (which then makes barrier tiles passable).
 
+**Visual identification confirmed by the original artist:**
+
+Matt Godbolt provided definitive tile identifications: white key (&21), yellow key (&28), white/yellow doors (&23/&29), carrot (&24), bookshelf (&2A), library ticket (&2B), bible (&2C), cross (&2E), unlit/lit candle (&2F/&30), fire (&31), TNT (&32), magic wand (&34), rabbit (&35), top hat (&36), ring (&37). The magic trick chain is confirmed: wand goes into the top hat → rabbit comes out.
+
+**Purged all "scroll" terminology:**
+
+The game has no scrolling — it's flip-screen. Renamed `zp_scroll_x`/`zp_scroll_y` → `zp_frog_x`/`zp_frog_y` (character columns and scanlines within the current screen), `zp_map_scroll_x`/`zp_map_scroll_y` → `zp_screen_x`/`zp_screen_y` (which screen in the level grid). Also renamed labels: `scroll_down` → `screen_down`, `scroll_step_table` → `hop_arc_table`, `calc_scroll_pos` → `calc_frog_pos`. Zero occurrences of "scroll" remain in any .asm file.
+
+**Fixed collision logic (types 5/7):**
+
+The `check_held` routine returns &FF when the item matches, which is *passable* per the codebase convention (&00=solid, &FF=passable). So types 5/7 tiles are barriers that become passable when you hold the matching item — not platforms that appear. Renamed the misleading `.solid` label to `.held_passable`.
+
 ## What Remains
 
-- Visual identification of individual item tiles (magic wands, top hats, rabbits, keys, etc.)
 - Level 2 object analysis and DAG
 - Full annotation of the setup code at &1100-&12FF
