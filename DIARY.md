@@ -349,7 +349,7 @@ Deep review pass over all assembly files, focusing on comment accuracy, idiomati
 
 **Item/object system fully documented (FORMATS.md, LEVEL1_OBJECTS.md):**
 
-Traced all 6 item evolution chains in Level 1, the terminal collection win condition (8 terminals → "LOGGED ON"), and the key/door mechanic. Created a Mermaid DAG showing object dependencies. The item system uses a clever INC-based transformation: walking on a type-9 tile while holding the matching data value increments the slot, creating item chains like &34 → &35 (which then makes platform tiles solid).
+Traced all 6 item evolution chains in Level 1, the terminal collection win condition (8 terminals → "LOGGED ON"), and the key/door mechanic. Created a Mermaid DAG showing object dependencies. The item system uses a clever INC-based transformation: walking on a type-9 tile while holding the matching data value increments the slot, creating item chains like &34 → &35 (which then makes barrier tiles passable).
 
 ## What Remains
 

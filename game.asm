@@ -534,15 +534,15 @@ ORG &4800
     LDA tile_type_table,Y
     RTS
 .check_held
-    LDA zp_tile_data
-    CMP zp_item_0
-    BEQ solid
-    CMP zp_item_1
-    BEQ solid
-    LDA #&00
+    LDA zp_tile_data        ; Tile's associated data value
+    CMP zp_item_0           ; Matches item slot 0?
+    BEQ held_passable
+    CMP zp_item_1           ; Matches item slot 1?
+    BEQ held_passable
+    LDA #&00                ; No match → solid (barrier blocks)
     RTS
-.solid
-    LDA #&FF
+.held_passable
+    LDA #&FF                ; Match → passable (barrier removed)
     RTS
 }
 ; Collision result for indexed tiles by type (from get_tile_type).
