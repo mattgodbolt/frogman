@@ -2,16 +2,12 @@
 ; FROGMAN — Game Engine (Annotated Disassembly)
 ; Written by Matthew Godbolt & Richard Talbot-Watkins, February 1993
 ;
-; Engine subroutines at &0700-&0C79, loaded as "FastI/O" to &5800
-; then copied to &0700 during game init. Called by the game code
-; (Gcode at &4800-&57FF) via the jump table at &0880.
+; Engine subroutines loaded as "FastI/O" to &5800, then copied to
+; &0700 during game init. Called by the game code (Gcode at
+; &4800-&57FF) via the jump table at &0880.
 ;
 ; Every instruction is byte-accurate against the runtime memory dump.
 ; ============================================================================
-
-; --- Lookup tables at &0700-&087F ---
-ORG &0700
-INCLUDE "tables.asm"
 
 ; ############################################################################
 ; GAME ENGINE

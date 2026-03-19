@@ -8,8 +8,6 @@
 ; Every byte verified against data/gcode_decrypted.bin.
 ; ============================================================================
 
-ORG &4800
-
 ; --- Tile source LUTs ---
 ; Duplicate of engine's tile_src_lo/hi tables, used by game code's
 ; draw_tile routine for tile rendering during frog movement.
@@ -2098,9 +2096,20 @@ ORG &4800
     RTS
 
 ; === Swap &0600 and &0D00 ===
-; Swaps 256 bytes between the IRQ handler area (&0600) and the
-; music/data block (&0D00). Called during init to place the right
-; data in each location.
+; Swaps 256 bytes between &0600 (NMI vector area) and &0D00 (music
+; channel 2 data). The content at &0600 is the DFS filing system's
+; NMI handler — standard DFS code, not part of Frogman. It includes
+; a self-modifying STA whose operand the DFS patches to the load
+; destination before each disc transfer (this was the "suspect store"
+; to &8000 in the original disassembly).
+;
+; During gameplay, the music data needs &0D00 so the DFS handler is
+; parked at &0600 (harmless — no disc NMIs fire during gameplay).
+; Before disc loading, this swaps it back so the DFS can use it.
+;
+; In a future non-byte-exact pass, this swap could potentially be
+; removed — the DFS ROM reinstalls its NMI handler on filing system
+; calls anyway.
 
 .swap_0600_0d00
 {
