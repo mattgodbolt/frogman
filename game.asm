@@ -8,8 +8,6 @@
 ; Every byte verified against data/gcode_decrypted.bin.
 ; ============================================================================
 
-ORG &4800
-
 ; --- Tile source LUTs ---
 ; Duplicate of engine's tile_src_lo/hi tables, used by game code's
 ; draw_tile routine for tile rendering during frog movement.

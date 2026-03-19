@@ -5,9 +5,12 @@ set -e
 cat > _verify.asm << 'EOF'
 INCLUDE "constants.asm"
 INCLUDE "zero_page.asm"
+ORG &0700
+INCLUDE "tables.asm"
 INCLUDE "engine.asm"
 INCLUDE "music.asm"
 SAVE "_verify_engine.bin", &0700, &0F00
+ORG &4800
 INCLUDE "game.asm"
 SAVE "_verify_game.bin", &4800, &5800
 EOF

@@ -14,9 +14,6 @@
 ;   Decompression ends when dest high byte goes negative (>= &80)
 ; ============================================================================
 
-CLEAR &0900, &0A00
-CLEAR &0A00, &0B00
-ORG &0900
 
 .*setup_entry
 {
