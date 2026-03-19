@@ -10,29 +10,33 @@
 
 ORG &4800
 
-; --- Tile source LUTs and data tables ---
+; --- Tile source LUTs ---
+; Duplicate of engine's tile_src_lo/hi tables, used by game code's
+; draw_tile routine for tile rendering during frog movement.
 .tile_source_lut
-    EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
-    EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
-    EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
-    EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
-    EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
-    EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
-    EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
-    EQUB &00, &40, &80, &C0, &00, &40, &80, &C0
-    EQUB &38, &38, &38, &38, &39, &39, &39, &39
-    EQUB &3A, &3A, &3A, &3A, &3B, &3B, &3B, &3B
-    EQUB &3C, &3C, &3C, &3C, &3D, &3D, &3D, &3D
-    EQUB &3E, &3E, &3E, &3E, &3F, &3F, &3F, &3F
-    EQUB &40, &40, &40, &40, &41, &41, &41, &41
-    EQUB &42, &42, &42, &42, &43, &43, &43, &43
-    EQUB &44, &44, &44, &44, &45, &45, &45, &45
-    EQUB &46, &46, &46, &46, &47, &47, &47, &47
+    FOR n, 0, 63
+        EQUB (n MOD 4) * &40
+    NEXT
+    FOR n, 0, 63
+        EQUB tile_src_base + (n DIV 4)
+    NEXT
+; Collision flags for simple tiles &00-&1F.
+; &00 = solid (frog lands on it), &FF = passable (frog falls through).
 .collision_flags
-    EQUB &FF, &00, &00, &00, &FF, &00, &FF, &FF
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &FF, &FF, &FF, &FF, &FF, &FF
-    EQUB &FF, &FF, &FF, &FF, &00, &00, &00, &FF
+    EQUB &FF                    ; &00: empty space (passable)
+    EQUB &00, &00, &00          ; &01-&03: brick, conveyor L/R (solid)
+    EQUB &FF                    ; &04: map terminal (passable)
+    EQUB &00                    ; &05: climbable slope right (solid)
+    EQUB &FF, &FF               ; &06-&07: ladder, ladder frame (passable)
+    EQUB &00, &00, &00, &00     ; &08-&0B: brick variants (solid)
+    EQUB &00, &00, &00, &00     ; &0C-&0F: brick variants (solid)
+    EQUB &00, &00               ; &10-&11: brick, locked door (solid)
+    EQUB &FF, &FF, &FF, &FF     ; &12-&15: hazard tiles (passable — lethal)
+    EQUB &FF, &FF, &FF, &FF     ; &16-&19: decoration (passable)
+    EQUB &FF, &FF               ; &1A-&1B: decoration (passable)
+    EQUB &00, &00               ; &1C-&1D: temporary placed tiles (solid)
+    EQUB &00                    ; &1E: climbable slope left (solid)
+    EQUB &FF                    ; &1F: power terminal (passable)
 
 ; --- Level file loading and CRTC setup ---
 .level_loader
@@ -215,7 +219,7 @@ ORG &4800
     LDX #LO(str_press_space)                    ; String pointer low
     LDY #HI(str_press_space)                    ; String pointer high (&546F)
     JSR draw_string                   ; Draw string: "PRESS SPACE TO START"
-    LDA #&62                    ; SPACE key
+    LDA #KEY_SPACE
 .wait_space
     JSR read_key
     BPL wait_space
@@ -240,7 +244,7 @@ ORG &4800
 ; --- Main game loop — keyboard, collision, movement ---
 .main_loop
     JSR tile_addr_setup    ; engine: tile_addr_setup
-    LDA #&70                    ; ESCAPE key
+    LDA #KEY_ESCAPE
     JSR read_key
     BPL check_ground
 .wait_escape_release
@@ -258,37 +262,37 @@ ORG &4800
     LDA #&00
     STA zp_falling
     PLA
-    CMP #&03
+    CMP #TILE_CONVEY_R
     BNE not_03
     JMP convey_right
 .not_03
-    CMP #&02
+    CMP #TILE_CONVEY_L
     BNE not_02
     JMP convey_left
 .not_02
-    CMP #&11
+    CMP #TILE_LOCKED
     BNE tile_dispatch_continue
     JMP check_tile_effect
 }
 .tile_dispatch_continue                  ; Re-entry point from apply_tile_effect
 {
-    CMP #&05
+    CMP #TILE_CLIMB_R
     BNE not_05
     JMP move_right_check
 .not_05
-    CMP #&1E
+    CMP #TILE_CLIMB_L
     BNE not_1e
     JMP move_left_check
 .not_1e
-    CMP #&10
+    CMP #TILE_CRUMBLE
     BNE not_10
     JMP place_tile_1c
 .not_10
-    CMP #&1C
+    CMP #TILE_PLACED_1
     BNE not_1c
     JMP place_tile_1d
 .not_1c
-    CMP #&1D
+    CMP #TILE_PLACED_2
     BNE not_1d
     JMP place_tile_00
 .not_1d
@@ -297,7 +301,7 @@ ORG &4800
     LDA zp_frog_row
     STA zp_tile_y
     JSR get_tile_at_pos
-    CMP #&04
+    CMP #TILE_MAP_TERM
     BNE not_04
     PHA
     LDA zp_game_state
@@ -314,7 +318,7 @@ ORG &4800
     STA zp_game_state
     PLA
 .skip_map
-    CMP #&1F
+    CMP #TILE_POWER_TERM
     BNE not_1f
     JMP handle_special_tile
 .not_1f
@@ -327,7 +331,7 @@ ORG &4800
 {
     CMP #&20
     BCS is_item
-    CMP #&12
+    CMP #TILE_HAZARD
     BNE check_below
     JMP handle_death
 .is_item
@@ -351,17 +355,17 @@ ORG &4800
 }
 .scan_keys
 {
-    LDA #&42                    ; X key
+    LDA #KEY_X
     JSR read_key
     BPL not_down
-    JMP move_down
+    JMP hop_right
 .not_down
-    LDA #&61                    ; Z key
+    LDA #KEY_Z
     JSR read_key
     BPL not_right
-    JMP move_right
+    JMP hop_left
 .not_right
-    LDA #&48                    ; : key
+    LDA #KEY_COLON
     JSR read_key
     BPL not_up
     JMP move_up_check
@@ -369,7 +373,7 @@ ORG &4800
     LDA zp_map_src_hi
     CMP #&03
     BEQ no_scroll
-    LDA #&20                    ; f0 key (use item slot 0)
+    LDA #KEY_F0
     JSR read_key
     BPL not_f0
 .wait_f0
@@ -379,7 +383,7 @@ ORG &4800
     LDX #&00
     JMP use_item_slot
 .not_f0
-    LDA #&71                    ; f1 key (use item slot 1)
+    LDA #KEY_F1
     JSR read_key
     BPL no_scroll
 .wait_f1
@@ -390,7 +394,7 @@ ORG &4800
     JMP use_item_slot
 .no_scroll
     JSR wait_vsync
-    LDA #&65                    ; M key (toggle music on/off)
+    LDA #KEY_M
     JSR read_key
     BPL done
     JSR jmp_init_game    ; engine: init_game
@@ -398,7 +402,7 @@ ORG &4800
     EOR #&FF
     STA zp_music_inhibit
 .wait_release
-    LDA #&65
+    LDA #KEY_M
     JSR read_key
     BMI wait_release
 .done
@@ -413,7 +417,7 @@ ORG &4800
     LDA zp_frog_row
     STA zp_tile_y
     JSR get_tile_at_pos
-    CMP #&06
+    CMP #TILE_LADDER
     BEQ check_gravity
     JSR get_tile_at_frog
     CMP #&20
@@ -508,6 +512,10 @@ ORG &4800
     LDA (zp_map_src_lo),Y
     RTS
 }
+; Returns Z flag: Z=1 (BEQ) = solid ground, Z=0 = passable/open.
+; For simple tiles: reads collision_flags (0=solid, FF=passable).
+; For typed tiles >= &20: checks tile_type_table, then check_held
+; for types 5 and 7 (tiles that become solid when you hold the matching item).
 .check_tile_solid
 {
     CMP #&20
@@ -536,12 +544,14 @@ ORG &4800
     LDA #&FF
     RTS
 }
+; Collision result for indexed tiles by type (from get_tile_type).
+; &00 = solid (frog lands), &FF = passable (frog falls through).
 .tile_type_table
-    EQUB &00, &00, &00
-    EQUB &FF, &FF
-    EQUB &00, &00, &00
-    EQUB &FF, &FF, &FF
-    EQUB &00, &00
+    EQUB &00, &00, &00          ; Types 0-2: solid
+    EQUB &FF, &FF               ; Types 3-4: passable
+    EQUB &00, &00, &00          ; Types 5-7: solid
+    EQUB &FF, &FF, &FF          ; Types 8-10: passable
+    EQUB &00, &00               ; Types 11-12: solid
 .get_tile_at_pos
 {
     LDA zp_tile_x
@@ -684,7 +694,7 @@ ORG &4800
     STA ULA_PALETTE                   ; Write to Video ULA palette register
     RTS
 
-    EQUB &65, &03                ; Dead code (unreachable after RTS)
+    EQUB &65, &03               ; Vestigial bytes (unreachable after RTS)
 .wait_vsync
 {
     PHA
@@ -757,7 +767,11 @@ ORG &4800
     STA zp_tile_x
     RTS
 }
-.move_down
+; === Hop Right ===
+; X key: hop the frog one tile to the right with arc animation.
+; Checks for obstructions, handles screen-edge wrapping.
+; If / key held, does a short 4-step hop instead of 8-step.
+.hop_right
 {
     JSR wait_vsync
     JSR update_frog_tile
@@ -778,7 +792,7 @@ ORG &4800
     JSR get_tile_at_pos
     JSR check_tile_solid
     BEQ short_hop_right
-    LDA #&68                    ; / key (short hop)
+    LDA #KEY_SLASH              ; Short hop modifier
     JSR read_key
     BMI short_hop_right
     INC zp_frog_col
@@ -867,22 +881,29 @@ ORG &4800
     RTS
 
 ; --- Tile type lookup ---
-; Returns tile type for tiles >= &20. Saves/restores Y via self-mod.
+; For tiles >= &20, reads a 2-byte type descriptor from the tile graphics
+; data at &4000. This is the pixel data of tile &20 itself, repurposed as
+; a type lookup table — a clever memory-saving trick. Each level's graphics
+; file embeds gameplay properties in the first tile's pixel data.
+; Returns: A = type code, zp_tile_data = associated tile index.
 .get_tile_type
     STY get_tile_type_ry + 1    ; Save Y (self-modifying LDY operand)
     SEC
-    SBC #&20
-    ASL A
+    SBC #&20                    ; Tile index relative to &20
+    ASL A                       ; ×2 for word-sized entries
     TAY
     INY
-    LDA &4000,Y
+    LDA &4000,Y                 ; Byte 1: associated tile data
     STA zp_tile_data
     DEY
-    LDA &4000,Y
+    LDA &4000,Y                 ; Byte 0: type code (returned in A)
 .get_tile_type_ry
     LDY #&00                    ; Restore Y (operand patched by STY above)
     RTS
-.move_right
+; === Hop Left ===
+; Z key: hop the frog one tile to the left with arc animation.
+; Mirror of hop_right.
+.hop_left
 {
     JSR wait_vsync
     JSR update_frog_tile
@@ -903,7 +924,7 @@ ORG &4800
     JSR get_tile_at_pos
     JSR check_tile_solid
     BEQ short_hop_left
-    LDA #&68                    ; / key (short hop)
+    LDA #KEY_SLASH              ; Short hop modifier
     JSR read_key
     BMI short_hop_left
     DEC zp_frog_col
@@ -984,7 +1005,7 @@ ORG &4800
 .again
     JSR step
     JSR get_tile_at_frog
-    CMP #&03
+    CMP #TILE_CONVEY_R
     BEQ again
     JMP main_loop
 .step
@@ -1013,7 +1034,7 @@ ORG &4800
 .again
     JSR step
     JSR get_tile_at_frog
-    CMP #&02
+    CMP #TILE_CONVEY_L
     BEQ again
     JMP main_loop
 .step
@@ -1050,7 +1071,7 @@ ORG &4800
     LDA zp_frog_row
     STA zp_tile_y
     JSR get_tile_at_pos
-    CMP #&03
+    CMP #TILE_CONVEY_R
     BNE check_ladder
 .climb_left_step
     LDA #&03
@@ -1082,7 +1103,7 @@ ORG &4800
     LDA zp_frog_row
     STA zp_tile_y
     JSR get_tile_at_pos
-    CMP #&03
+    CMP #TILE_CONVEY_R
     BEQ climb_left_step
     LDA #&02
     STA zp_direction
@@ -1103,7 +1124,7 @@ ORG &4800
     LDA zp_frog_row
     STA zp_tile_y
     JSR get_tile_at_pos
-    CMP #&06
+    CMP #TILE_LADDER
     BEQ is_ladder
     JMP jump_up
 .is_ladder
@@ -1125,7 +1146,7 @@ ORG &4800
     LDA zp_frog_row
     STA zp_tile_y
     JSR get_tile_at_pos
-    CMP #&02
+    CMP #TILE_CONVEY_L
     BNE check_ladder
 .climb_right_step
     LDA #&01
@@ -1157,7 +1178,7 @@ ORG &4800
     LDA zp_frog_row
     STA zp_tile_y
     JSR get_tile_at_pos
-    CMP #&02
+    CMP #TILE_CONVEY_L
     BEQ climb_right_step
     LDA #&00
     STA zp_direction
@@ -1183,7 +1204,7 @@ ORG &4800
     LDA zp_frog_col
     STA zp_tile_x
     JSR get_tile_at_pos
-    CMP #&07
+    CMP #TILE_LADDER_FRM
     BEQ climb_animate
     LDA zp_frog_col
     ASL A : ASL A
@@ -1268,18 +1289,22 @@ ORG &4800
 .jump_up_done
     JMP main_loop
 }
+; --- Key/door check ---
+; Tile &11 is a locked door. If either item slot holds a type-1 tile
+; (the key, tile &37), the door opens (frog passes through as tile &00).
+; Otherwise, falls through to handle_death.
 .apply_tile_effect
-    LDA #&00
+    LDA #&00                    ; Replace door with empty (patched by check_tile_effect)
     JMP tile_dispatch_continue
 .check_tile_effect
-    STA apply_tile_effect + 1
+    STA apply_tile_effect + 1   ; Patch the LDA operand with original tile
     LDA zp_item_0
     JSR get_tile_type
-    CMP #&01
+    CMP #&01                    ; Is item 0 a key (type 1)?
     BEQ apply_tile_effect
     LDA zp_item_1
     JSR get_tile_type
-    CMP #&01
+    CMP #&01                    ; Is item 1 a key?
     BEQ apply_tile_effect
 
 ; --- Death animation and life check ---
@@ -1311,7 +1336,7 @@ ORG &4800
     BNE sink_loop
     LDX #&32
     JSR wait_frames
-    LDA #&00
+    LDA #KEY_ZERO               ; Hold 0 during death = instant game over
     JSR read_key
     BPL check_lives
     LDA #&01
@@ -1325,6 +1350,8 @@ ORG &4800
     JSR draw_status
     JMP game_loop_start
 }
+; === Walk Right (on climbable surface) ===
+; Triggered by tile &05: slow 4-step rightward movement with no arc.
 .move_right_check
 {
     LDY zp_frog_col
@@ -1364,6 +1391,8 @@ ORG &4800
     INC zp_frog_col
     JMP main_loop
 }
+; === Walk Left (on climbable surface) ===
+; Triggered by tile &1E: slow 4-step leftward movement with no arc.
 .move_left_check
 {
     LDY zp_frog_col
@@ -1488,13 +1517,17 @@ ORG &4800
     LDA #&01
     RTS
 }
+; Item pickup eligibility by type. &00 = CAN be picked up, &FF = cannot.
+; Used by check_tile_passable: Z flag set (BEQ) means "can pick up".
 .collision_check_table
-
-; --- Collision table (data) ---
-    EQUB &00, &00, &00, &00, &00, &FF, &FF, &FF
-    EQUB &FF, &FF, &00, &FF, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
-    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00  ; Types 0-4: pickupable
+    EQUB &FF, &FF, &FF            ; Types 5-7: not pickupable (special interaction)
+    EQUB &FF, &FF                 ; Types 8-9: not pickupable (auto-collect/solid)
+    EQUB &00                      ; Type 10: pickupable
+    EQUB &FF                      ; Type 11: not pickupable (drop trigger)
+    EQUB &00, &00, &00, &00       ; Types 12-15: pickupable
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00  ; Types 16-23: pickupable
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00  ; Types 24-31: pickupable
 
 ; --- Item placement ---
 .place_item
@@ -1543,6 +1576,10 @@ ORG &4800
     JSR draw_status
 .drop_item_done
     JMP main_loop
+; === Collect Item (type 9 trigger) ===
+; Auto-collect tiles transform a held item: if an item slot holds the
+; tile's data value, the slot is incremented (item "evolves").
+; E.g., holding &2B and stepping on a type-9 tile with data=&2B → slot becomes &2C.
 .collect_item
 {
     PHA
@@ -1575,6 +1612,9 @@ ORG &4800
     JSR palette_flash
     PLA
     RTS
+; === Drop Item (type 0B trigger) ===
+; If an item slot holds the tile's data value, the slot is cleared
+; (item consumed). Also clears tiles below and flashes the palette.
 .drop_item
 {
     PHA
@@ -1631,8 +1671,11 @@ ORG &4800
     DEX
     BPL wait_frames
     RTS
+; Place a temporary solid tile below the frog. Tiles &10, &1C, &1D
+; cycle through a sequence: &10 places &1C, &1C places &1D, &1D places &00.
+; This creates disappearing platforms that crumble as the frog stands on them.
 .place_tile_1c
-    LDA #&1C
+    LDA #TILE_PLACED_1
 .place_tile_below
     PHA
     LDA zp_frog_col
@@ -1644,10 +1687,10 @@ ORG &4800
     JSR set_tile_at_pos
     JMP scan_keys
 .place_tile_1d
-    LDA #&1D
+    LDA #TILE_PLACED_2
     JMP place_tile_below
 .place_tile_00
-    LDA #&00
+    LDA #TILE_EMPTY
     JMP place_tile_below
 .draw_digit
 {
@@ -1683,15 +1726,11 @@ ORG &4800
 ; --- Digit rendering mask table ---
     EQUB &00, &03, &0C, &0F, &30, &33, &3C, &3F
 .str_title
-    EQUB &24, &25, &0F, &1B, &18, &10, &16, &0A
-    EQUB &17, &25, &25, &0B, &22, &25, &16, &10
-    EQUB &25, &24, &25, &1B, &1D, &20, &25, &24
-    EQUB &FF                    ; String terminator
+    TILESTR "* FROGMAN  BY MG * RTW *"
+    EQUB &FF
 .str_press_space
-    EQUB &24, &25, &19, &1B, &0E, &1C, &1C
-    EQUB &25, &1C, &19, &0A, &0C, &0E, &25, &1D
-    EQUB &18, &25, &1C, &1D, &0A, &1B, &1D, &25
-    EQUB &24, &FF
+    TILESTR "* PRESS SPACE TO START *"
+    EQUB &FF
 
 ; --- More rendering and string display ---
 .draw_string
@@ -1711,6 +1750,11 @@ ORG &4800
 .done
     RTS
 }
+; === Map Reveal ===
+; Triggered by tile &04. First visit: fades out, renders the overview
+; map from Level?S data at &0300, places collected terminal tiles (&38+)
+; onto the overview. Second visit: restores the normal game screen.
+; Terminal tiles >= &38 are placed at row 6 of the overview as markers.
 .handle_map_reveal
 {
     JSR fade_out
@@ -1857,23 +1901,23 @@ ORG &4800
     INC zp_terminal_ctr
     RTS
 }
-; --- Display strings (tile font: A=&0A..Z=&23, space=&25, *=&24, &FF=end) ---
-.str_special_msg                ; "* POWER CONTROL TERMINAL *"
-    EQUB &24, &25, &19, &18, &20, &0E, &1B, &25
-    EQUB &0C, &18, &17, &1D, &1B, &18, &15, &25
-    EQUB &1D, &0E, &1B, &16, &12, &17, &0A, &15
-    EQUB &25, &24, &FF
-.str_continue                   ; "* ACCESS DENIED *"
-    EQUB &24, &25, &0A, &0C, &0C, &0E, &1C, &1C
-    EQUB &25, &0D, &0E, &17, &12, &0E, &0D, &25
-    EQUB &24, &FF
-.str_well_done                  ; "* LOGGED ON "
-    EQUB &24, &25, &15, &18, &10, &10, &0E, &0D
-    EQUB &25, &18, &17, &25, &FF
-.str_power_off                  ; " POWER DEACTIVATED *" (unused — cut feature?)
-    EQUB &25, &19, &18, &20, &0E, &1B, &25, &0D
-    EQUB &0E, &0A, &0C, &1D, &12, &1F, &0A, &1D
-    EQUB &0E, &0D, &25, &24, &FF
+; --- Display strings (tile font encoding: A=&0A..Z=&23, space=&25, *=&24, &FF=end) ---
+.str_special_msg
+    TILESTR "* POWER CONTROL TERMINAL *"
+    EQUB &FF
+.str_continue
+    TILESTR "* ACCESS DENIED *"
+    EQUB &FF
+.str_well_done
+    TILESTR "* LOGGED ON "
+    EQUB &FF
+.str_power_off                  ; Unused — cut feature?
+    TILESTR " POWER DEACTIVATED *"
+    EQUB &FF
+; === Power Control Terminal ===
+; Tile &1F is the final objective. Shows "POWER CONTROL TERMINAL" message.
+; If all 8 terminal items have been collected (zp_terminal_ctr >= 8),
+; shows "LOGGED ON". Otherwise shows "ACCESS DENIED".
 .handle_special_tile
 {
     PHA

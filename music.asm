@@ -1,25 +1,22 @@
 ; ============================================================================
 ; FROGMAN — Music and Sound Data
 ; ============================================================================
-; Contains music note/duration pairs and an encrypted data block.
+; Default music data for channels 1-3. This entire region is OVERWRITTEN
+; when a level loads — Level?T (640 bytes) replaces all three channels.
+; The data below is the Level 1 initial state, but since the game always
+; loads Level?T before playing, it only matters for byte-exact matching.
 ;
-; Music format: pairs of bytes (note, duration) where:
-;   - Note values map to SN76489 frequency registers
-;   - Duration is a countdown in interrupt ticks
-;   - &FE &FF marks end of tune (loops or stops)
-;   - Values in the &80-&BE range encode note pairs with timing
+; Music format: interleaved note/duration pairs where:
+;   - Even bytes: frequency index (maps to SN76489 via freq_divider_table)
+;   - Odd bytes: duration in 50Hz interrupt ticks
+;   - &FE, &FF marks end of channel data (wraps to start)
+;   - Bytes with bit 0 set encode frequency/volume parameter changes
+;   - Bytes >= &80 with bit 0 clear are control tokens (&FC/&FA/&FE)
 ;
-; The music data is referenced by the IRQ handler via self-modifying
-; pointers at &0D3D/&0D3E.
-;
-; Sound channel data sources (all level-specific):
-;   Channel 1 → page &0C (&0C80)
-;   Channel 2 → page &0D (&0D80)
-;   Channel 3 → page &0E (&0E80)
-;
-; Level?T loads at &5D80 (640 bytes). After the engine copy
-; (&5800→&0700), this maps to &0C80-&0EFF — overwriting ALL
-; channel data. Each level has completely different music.
+; Sound channel data pages (set by channel_data_hi in engine.asm):
+;   Channel 1 → page &0C (this file starts at &0C80 after engine copy)
+;   Channel 2 → page &0D
+;   Channel 3 → page &0E
 ; ============================================================================
 
 ; Music data begins immediately after the tile renderer's RTS.
@@ -27,44 +24,43 @@
 
 ; --- Channel 1 data (overwritten by Level?T on load) ---
 .music_data
-    EQUB &4F, &56, &20, &52     ; "OV R" — ASCII remnant or data header
-    EQUB &30, &2C, &07, &F1     ; Tune header / initial note data
+    EQUB &4F, &56, &20, &52
+    EQUB &30, &2C, &07, &F1
 
-    ; Note/duration pairs — melody line
-    EQUB &2E, &1E, &2E, &1E     ; Note pairs (pitch, duration)
+    ; Note/duration pairs for channel 1 melody
+    EQUB &2E, &1E, &2E, &1E
     EQUB &34, &1E, &34, &1E
-    EQUB &3E, &1E, &BE, &B8     ; &BE/&B8 = long notes or rest
+    EQUB &3E, &1E, &BE, &B8
     EQUB &3E, &1E, &3C, &1E
     EQUB &38, &1E, &30, &1E
     EQUB &2E, &1E, &26, &1E
     EQUB &2E, &1E, &2A, &1E
-    EQUB &2A, &3C, &34, &1E     ; &3C = longer duration
+    EQUB &2A, &3C, &34, &1E
     EQUB &34, &1E, &3E, &1E
     EQUB &3E, &1E, &48, &1E
-    EQUB &C6, &C2, &46, &1E     ; &C6/&C2 = bass notes
+    EQUB &C6, &C2, &46, &1E
     EQUB &3E, &1E, &42, &1E
     EQUB &3C, &1E, &3E, &1E
-    EQUB &C2, &BE, &3C, &3C     ; Chord progression
+    EQUB &C2, &BE, &3C, &3C
     EQUB &46, &3C, &3E, &1E
     EQUB &3E, &1E, &40, &1E
     EQUB &40, &1E, &42, &1E
     EQUB &42, &1E, &44, &1E
     EQUB &44, &1E, &46, &1E
-    EQUB &BE, &B8, &46, &1E     ; Descending phrase
+    EQUB &BE, &B8, &46, &1E
     EQUB &46, &1E, &46, &3C
-    EQUB &00, &1E, &46, &1E     ; &00 = rest/silence
+    EQUB &00, &1E, &46, &1E
     EQUB &48, &1E, &42, &1E
-    EQUB &BE, &BC, &B8, &B4     ; Long bass sequence
+    EQUB &BE, &BC, &B8, &B4
     EQUB &46, &1E, &3E, &1E
     EQUB &B8, &B4, &B0, &B8
     EQUB &42, &1E, &38, &1E
     EQUB &BE, &BC, &B8, &B6
     EQUB &38, &3C, &38, &1E
     EQUB &34, &1E
-    EQUB &FE, &FF              ; End of tune 1
+    EQUB &FE, &FF              ; End of channel 1
 
-    ; Padding — everything from here to end of region is overwritten
-    ; by Level?T on load, so these are just Level 1's initial values.
+    ; Residual data — overwritten by Level?T on load.
     EQUB &DD, &07, &4F, &47
     EQUB &B2, &DA
     EQUB &35, &D7, &2D, &49, &04, &BC, &E5, &79
@@ -84,11 +80,11 @@
     EQUB &D4, &29, &1F, &56, &73, &D1, &92, &59
     EQUB &A4, &58, &DE, &01, &04, &6A, &65, &65
 
-; --- Level 1 channel 2 data (overwritten by Level?T on load) ---
+; --- Channel 2 data (overwritten by Level?T on load) ---
 .music_data_2
     EQUB &07, &E1
-    ; Bass line melody
-    EQUB &A6, &9C, &A6, &9C     ; Deep bass notes
+    ; Note/duration pairs for channel 2
+    EQUB &A6, &9C, &A6, &9C
     EQUB &AA, &9C, &AA, &9C
     EQUB &B8, &AE, &B8, &AE
     EQUB &B8, &AE, &B4, &AE
@@ -96,18 +92,18 @@
     EQUB &A6, &9C, &A6, &9C
     EQUB &A0, &92, &A6, &A0
     EQUB &A6, &9C, &A4, &9C
-    EQUB &AE, &A4, &AE, &A4     ; Rising phrase
+    EQUB &AE, &A4, &AE, &A4
     EQUB &B4, &AE, &B4, &AE
     EQUB &BE, &B8, &3C, &1E
     EQUB &BC, &B4, &B8, &AE
     EQUB &B0, &B8, &B6, &AA
     EQUB &B8, &B0, &B0, &B8
-    EQUB &36, &3C, &36, &3C     ; Alternating pattern
+    EQUB &36, &3C, &36, &3C
     EQUB &B8, &AE, &B8, &AE
     EQUB &B8, &AE, &B8, &AE
     EQUB &B8, &B0, &B8, &B0
     EQUB &B8, &B0, &B8, &B0
-    EQUB &BE, &AE, &B8, &AE     ; Closing phrase
+    EQUB &BE, &AE, &B8, &AE
     EQUB &B8, &B6, &B2, &B6
     EQUB &B8, &B4, &B8, &BA
     EQUB &B8, &B4, &B0, &AE
@@ -119,9 +115,9 @@
     EQUB &2A, &1E, &2A, &1E
     EQUB &A6, &AE, &B8, &BE
     EQUB &BC, &B8, &B4, &B0
-    EQUB &FE, &FF              ; End of tune 2
+    EQUB &FE, &FF              ; End of channel 2
 
-    ; Level 1 channel 2-3 boundary data (overwritten by Level?T)
+    ; Residual data — overwritten by Level?T on load
     EQUB &83, &BD, &17, &06, &4C, &E1, &D3, &F8
     EQUB &81, &3C, &7D, &C2, &6F, &85, &F6, &B2
     EQUB &A5, &B9, &2D, &B1, &E2, &8C, &0C, &03
@@ -139,10 +135,10 @@
     EQUB &94, &9D, &DC, &02, &41, &0A, &B7, &48
     EQUB &6F, &90, &FF, &54, &00, &3D, &79, &53
 
-; --- Level 1 channel 3 data (overwritten by Level?T on load) ---
+; --- Channel 3 data (overwritten by Level?T on load) ---
 .music_data_3
     EQUB &07, &D1
-    ; Short melodic sequence
+    ; Note/duration pairs for channel 3
     EQUB &0E, &3C, &0C, &3C
     EQUB &08, &3C, &16, &3C
     EQUB &18, &3C, &1C, &3C
@@ -152,7 +148,6 @@
     EQUB &16, &1E, &20, &1E
     EQUB &12, &1E, &16, &1E
     EQUB &18, &1E, &12, &1E
-    ; Rhythmic section
     EQUB &96, &92, &96, &98
     EQUB &96, &92, &8E, &8C
     EQUB &20, &3C, &1C, &3C
@@ -164,9 +159,9 @@
     EQUB &26, &3C, &18, &3C
     EQUB &12, &3C, &16, &3C
     EQUB &20, &3C, &24, &3C
-    EQUB &FE, &FF              ; End of tune 3
+    EQUB &FE, &FF              ; End of channel 3
 
-    ; Trailing Level 1 data (overwritten by Level?T)
+    ; Residual data — overwritten by Level?T on load
     EQUB &2E, &63, &45, &1E
     EQUB &06, &54, &10, &59
     EQUB &9F, &48, &C8, &29
@@ -176,6 +171,6 @@
     EQUB &6B, &91, &D5, &BF
     EQUB &DA, &70, &FC, &86
     EQUB &2A, &98, &73
-.anim_timing_const
+.anim_timing_const                      ; Note duration base — level-specific (overwritten by Level?T)
     EQUB &0F, &36, &34, &30, &38
     EQUB &38, &29, &34, &65
