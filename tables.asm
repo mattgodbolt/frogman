@@ -15,9 +15,9 @@
 ; each group of 4 consecutive tiles to the same source bank.
 
 .tile_src_lo
-    FOR n, 0, 63
+FOR n, 0, 63
         EQUB (n MOD 4) * &40
-    NEXT
+NEXT
 
 ; ============================================================================
 ; Tile Source High-Byte LUT
@@ -29,9 +29,9 @@
 tile_src_base = &38
 
 .tile_src_hi
-    FOR n, 0, 63
+FOR n, 0, 63
         EQUB tile_src_base + (n DIV 4)
-    NEXT
+NEXT
 
 ; ============================================================================
 ; Palette / Frequency Low-Nibble Table

@@ -33,21 +33,21 @@
     ; --- Load title screen RLE data ---
     LDX #LO(oscli_load_data2)
     LDY #HI(oscli_load_data2)
-    JSR OSCLI                    ; *L.Data2 (&1300)
+    JSR OSCLI                   ; *L.Data2 (&1300)
 
     ; --- RLE decompress: &1300 → &3000 (screen memory) ---
-    LDA #&00 : STA &70           ; Source low
-    LDA #&13 : STA &71           ; Source high (&1300)
-    LDA #&00 : STA &72           ; Dest low
-    LDA #&30 : STA &73           ; Dest high (&3000)
+    LDA #&00 : STA &70          ; Source low
+    LDA #&13 : STA &71          ; Source high (&1300)
+    LDA #&00 : STA &72          ; Dest low
+    LDA #&30 : STA &73          ; Dest high (&3000)
 
 {
 .token_loop
     LDY #&00
-    LDA (&70),Y                  ; Read token byte
-    BMI repeat                   ; Bit 7 set → repeat fill
+    LDA (&70),Y                 ; Read token byte
+    BMI repeat                  ; Bit 7 set → repeat fill
     AND #&40
-    BNE fill_page                ; Bit 6 set → page fill
+    BNE fill_page               ; Bit 6 set → page fill
 
     ; --- Literal: copy 1 byte ---
     LDA (&70),Y
@@ -60,17 +60,17 @@
 
     ; --- Repeat: fill (count) bytes with (value) ---
 .repeat
-    AND #&3F                     ; Value = token & &3F
+    AND #&3F                    ; Value = token & &3F
     STA &74
     INY
-    LDA (&70),Y                  ; Count byte
+    LDA (&70),Y                 ; Count byte
     STA &75
-    TAX                          ; X = count
+    TAX                         ; X = count
     CLC
-    LDA &70 : ADC #&02 : STA &70 ; Source += 2
+    LDA &70 : ADC #&02 : STA &70  ; Source += 2
     LDA &71 : ADC #&00 : STA &71
     LDY #&00
-    LDA &74                      ; Fill value
+    LDA &74                     ; Fill value
 .repeat_loop
     STA (&72),Y
     INY
@@ -84,10 +84,10 @@
 
     ; --- Fill page: fill 256 bytes with (value) ---
 .fill_page
-    LDA (&70),Y                  ; Re-read token
+    LDA (&70),Y                 ; Re-read token
     INC &70 : BNE skip2 : INC &71
 .skip2
-    AND #&3F                     ; Fill value
+    AND #&3F                    ; Fill value
     LDY #&00
 .fill_loop
     STA (&72),Y
@@ -107,7 +107,7 @@
     ; --- Wait for SPACE ---
 {
 .wait
-    LDA #&62                     ; SPACE key
+    LDA #&62                    ; SPACE key
     STA VIA_ORA_NH
     BIT VIA_ORA_NH
     BPL wait
@@ -124,19 +124,19 @@
     DEX
     BNE clear_src
     INC clear_src + 2
-    BPL clear_src              ; Loop &3000-&7FFF
+    BPL clear_src               ; Loop &3000-&7FFF
 }
 
     ; --- Load game files and start ---
     LDX #LO(oscli_load_gcode)
     LDY #HI(oscli_load_gcode)
-    JSR OSCLI                    ; *LOAD Gcode
+    JSR OSCLI                   ; *LOAD Gcode
 
     LDX #LO(oscli_load_fastio)
     LDY #HI(oscli_load_fastio)
-    JSR OSCLI                    ; *LOAD FastI/O 5800
+    JSR OSCLI                   ; *LOAD FastI/O 5800
 
-    JMP &48A0                    ; Start the game
+    JMP &48A0                   ; Start the game
 
 .oscli_load_data2
     EQUS "L.Data2", 13
