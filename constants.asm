@@ -63,6 +63,53 @@ TILE_PLACED_2 = &1D             ; Crumble stage 3 (→ &00)
 TILE_CLIMB_L = &1E              ; Climbable slope left
 TILE_POWER_TERM = &1F           ; Power control terminal (final objective)
 
+; --- Debug rasters ---
+; When TRUE, the engine writes logical colour 0 at phase boundaries so each
+; frame paints horizontal bars showing where time is being spent:
+;   BLUE  = VSYNC IRQ (sound + palette cycling)
+;   RED   = update_frog_tile (map redraw under frog)
+;   GREEN = tile_render (frog overlay sprite)
+;   BLACK = idle (wait_vsync spin)
+; Set to FALSE to omit the instrumentation entirely.
+debugrasters = FALSE
+
+PAL_black    = 0 EOR 7
+PAL_red      = 1 EOR 7
+PAL_green    = 2 EOR 7
+PAL_yellow   = 3 EOR 7
+PAL_blue     = 4 EOR 7
+PAL_magenta  = 5 EOR 7
+PAL_cyan     = 6 EOR 7
+PAL_white    = 7 EOR 7
+
+; RASTER sets a phase colour and remembers it in zp_raster_colour, so the
+; VSYNC IRQ can save/restore around its own (transient) BLUE marker without
+; clobbering whatever phase the main thread was running.
+MACRO RASTER col
+        IF debugrasters
+            LDA #&00 OR col
+            STA ULA_PALETTE
+            STA zp_raster_colour
+        ENDIF
+ENDMACRO
+
+; RASTER_TRANSIENT writes the ULA without touching zp_raster_colour — used by
+; the IRQ entry so its BLUE bar is visible without overwriting the main-thread
+; phase that RASTER_RESTORE will put back on exit.
+MACRO RASTER_TRANSIENT col
+        IF debugrasters
+            LDA #&00 OR col
+            STA ULA_PALETTE
+        ENDIF
+ENDMACRO
+
+MACRO RASTER_RESTORE
+        IF debugrasters
+            LDA zp_raster_colour
+            STA ULA_PALETTE
+        ENDIF
+ENDMACRO
+
 ; --- Tile font string macro ---
 ; The game uses tile indices for text: A=&0A..Z=&23, space=&25, *=&24.
 ; This macro temporarily remaps characters for EQUS, then resets.

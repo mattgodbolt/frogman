@@ -31,6 +31,23 @@ make                # Build disc image
 - Zero page variables named in zero_page.asm, hardware in constants.asm
 - Sound channel state uses `zp_snd_*` prefix, not "sprite"
 
+## Music data layout
+
+Each music channel lives at a page-aligned address required by the IRQ
+read code (`LDA (zp_snd_data_lo),Y` with channel-specific HI byte and a
+shared LO byte). music.asm anchors each channel explicitly:
+
+- `music_ch1` at `&0C80`
+- `music_ch2` at `&0D80`
+- `music_ch3` at `&0E80`
+- `anim_timing_const` at `&0EF7` (per-level note timing, slot in Level?T)
+
+Engine and game code reference these by name (`HI(music_ch1)`,
+`LO(music_ch1)`, `STA music_ch1,Y`). The Level?T file format is 640 bytes
+mapped to `&0C80-&0EFF`: ch1 = bytes 0..255, ch2 = 256..511, ch3 = 512..639,
+timing byte at file offset 631. Engine code can grow freely up to `&0C80`
+without breaking the music — adding bytes there does not slide the channels.
+
 ## Verification
 
 Always run `./verify.sh` after changes to confirm byte-exact match.

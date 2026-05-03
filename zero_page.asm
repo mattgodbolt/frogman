@@ -56,6 +56,7 @@ ORG &00
 .zp_level_char  SKIP 1          ; ASCII level number character ('1' or '2')
 .zp_temp_item   SKIP 1          ; Temporary: item tile being placed
 .zp_temp_type   SKIP 1          ; Temporary: item type being placed
+.zp_raster_colour SKIP 1        ; Debug raster: last colour set by main thread; restored on IRQ exit
 
 ; --- Engine temporaries (used during sound channel update) ---
 ORG &60

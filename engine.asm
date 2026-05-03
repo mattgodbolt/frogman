@@ -237,8 +237,8 @@ NEXT
     BNE next_channel            ; Still playing — skip
 
     ; Timer expired — read next token from music stream
-    LDA #&80
-    STA zp_snd_data_lo          ; Music data ptr low = &80
+    LDA #LO(music_ch1)
+    STA zp_snd_data_lo          ; Music data offset (same low byte for all channels)
     LDA channel_data_hi,X       ; Music data page for channel X
     STA zp_snd_data_hi
     LDY zp_snd_anim_idx,X       ; Music stream index
@@ -408,7 +408,7 @@ NEXT
 .channel_loop_ctr
     EQUB &00, &00, &00, &00
 .channel_data_hi
-    EQUB &00, &0C, &0D, &0E
+    EQUB &00, HI(music_ch1), HI(music_ch2), HI(music_ch3)
 
 ; === Init Sound Channel ===
 ; Initializes a sound channel with frequency, volume, and envelope data.
@@ -525,18 +525,12 @@ NEXT
     STA tile_gfx_load + 2       ; Patch address high byte
     BNE tile_render             ; Always branches (A=&37)
 
-    ; Alternative entry: caller provides custom tile address in zp_src_lo/hi
-.tile_addr_custom
-    LDA zp_src_lo
-    STA tile_gfx_load + 1
-    LDA zp_src_hi
-    STA tile_gfx_load + 2
-
 ; === Tile Renderer ===
 ; Core tile drawing routine. Reads tile graphics, masks with &0100 table,
 ; overlays onto screen content, and writes back.
 
 .tile_render
+    RASTER PAL_green            ; debug raster: frog overlay sprite draw
     LDA zp_frog_x               ; Tile X coordinate
     STA zp_dst_lo
     LDA #&00

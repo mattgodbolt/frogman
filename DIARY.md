@@ -363,6 +363,67 @@ The game has no scrolling — it's flip-screen. Renamed `zp_scroll_x`/`zp_scroll
 
 The `check_held` routine returns &FF when the item matches, which is *passable* per the codebase convention (&00=solid, &FF=passable). So types 5/7 tiles are barriers that become passable when you hold the matching item — not platforms that appear. Renamed the misleading `.solid` label to `.held_passable`.
 
+## Entry 23: Debug Rasters and Music Channel Anchoring
+
+Added a debug-raster system that paints horizontal colour bars showing where
+each frame's CPU time is spent (BLUE = VSYNC IRQ work, RED = update_frog_tile,
+GREEN = tile_render, BLACK = idle in wait_vsync). Toggle is a build-time
+`debugrasters = TRUE/FALSE` constant. Each phase boundary writes logical
+colour 0 to the Video ULA palette register `&FE21`; the IRQ saves and restores
+the main-thread colour via a `zp_raster_colour` byte so its BLUE bar doesn't
+clobber whatever phase the main thread was running.
+
+A busy-wait inside `wait_vsync` (≈70 scanlines after VSYNC IRQ exit)
+deliberately stalls the main thread until visible display starts, so the
+render phases fall inside the visible window rather than during VBLANK.
+Without it, the game's per-frame work is so well under budget that it all
+fits in vertical blanking and the bars are never seen on screen — useful
+profile result by itself.
+
+**Why the rasters initially broke music:**
+
+Adding the GREEN raster (7 bytes) to `tile_render` shifted everything in
+music.asm, including the channel labels. The IRQ reads channels via
+`channel_data_hi[X]` (page byte) and `zp_snd_data_lo` (a fixed `&80`
+offset), so it expects channel 2 at `&0D80` and channel 3 at `&0E80`. The
+disassembly placed `music_data_2` and `music_data_3` at *consequence-of-
+position* addresses — they were on those page boundaries only because
+engine code happened to end at `&0C7A`. Any growth slid them off-page;
+the IRQ then read into channel 1's tail bytes and the music sounded as
+"melody right, accompaniment random".
+
+**Fix — anchor channels explicitly:**
+
+music.asm now uses `ORG &0C80` / `&0D80` / `&0E80` / `&0EF7` to anchor
+`music_ch1` / `music_ch2` / `music_ch3` / `anim_timing_const` to the
+addresses the IRQ actually reads. Engine and game code reference these
+labels: `LDA #LO(music_ch1)`, `EQUB &00, HI(music_ch1), HI(music_ch2),
+HI(music_ch3)`, `STA music_ch1,Y`, etc. Engine code can now grow freely
+up to `&0C80` without touching music.
+
+The previous `music_data` / `music_data_2` / `music_data_3` labels are
+gone. The old `music_data` was misleading — it pointed 6 bytes *before*
+channel 1's actual stream start, capturing some end-of-engine bytes that
+the disassembler had grouped with the music data. Those 6 bytes now sit
+in the gap between engine end and `ORG &0C80`, written as zeros.
+
+**Sub-discovery — `tile_addr_custom` was dead code:**
+
+The engine had a 10-byte alternative entry `tile_addr_custom` (load tile
+graphics base from `zp_src_lo/hi` instead of the LUT). Searched the whole
+codebase: no references. Removed it. The freed bytes were what made room
+for the GREEN raster in `tile_render` while keeping the engine well under
+the `&0C80` ceiling.
+
+**General lesson — disassembly literals lie about intent:**
+
+The 1993 source almost certainly used labels and assembler-derived offsets
+throughout (`#LO(music_ch1)`, `HI(music_ch2)`, etc.). The disassembler
+captured the *resolved* bytes (`#&80`, `EQUB &0C, &0D, &0E`, `STA &0C80,Y`)
+which read like hand-typed magic numbers but are really just the runtime
+values of forgotten labels. Treat any literal that sits next to a label
+boundary or page boundary as a candidate for re-symbolising.
+
 ## What Remains
 
 - Level 2 object analysis and DAG

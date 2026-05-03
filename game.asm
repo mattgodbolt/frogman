@@ -146,6 +146,10 @@ NEXT
     STA zp_palette_count        ; Active palette entries for cycling
     LDA #&08
     STA zp_palette_idx          ; First palette entry to animate
+IF debugrasters
+        LDA #PAL_black
+        STA zp_raster_colour    ; Initial main-thread phase = BLACK
+ENDIF
 
     ; --- System VIA setup ---
     LDA #&FF
@@ -618,6 +622,8 @@ NEXT
 
         STA VIA_IFR             ; Acknowledge VSYNC interrupt
 
+        RASTER_TRANSIENT PAL_blue  ; debug raster: IRQ work begins (transient)
+
     ; --- Update sound (if not inhibited) ---
         LDA zp_music_inhibit    ; Music inhibit flag
         BNE skip_sound          ; Non-zero = skip
@@ -671,6 +677,7 @@ NEXT
         JSR set_palette         ; Set new entry to active colour
 
 .exit
+        RASTER_RESTORE          ; debug raster: restore main-thread phase colour
         PLA : TAY               ; Restore Y
         PLA : TAX               ; Restore X
         PLA : STA &FC           ; Restore A to MOS save location
@@ -699,6 +706,7 @@ NEXT
         PHA
         LDA #&00
         STA zp_vsync_flag
+        RASTER PAL_black        ; debug raster: idle waiting for VSYNC
 .spin
         LDA zp_vsync_flag
         BEQ spin
@@ -714,6 +722,7 @@ NEXT
 .done
         RTS
 .*update_frog_tile
+        RASTER PAL_red          ; debug raster: map tile redraw under frog
         LDA zp_frog_x
         LSR A : LSR A
         STA zp_tile_x
@@ -2056,7 +2065,7 @@ NEXT
         STA map_src + 2
         LDA #&0F
         STA map_dst + 2
-        LDA #&0C
+        LDA #HI(music_ch1)
         STA tile_dst + 2
         LDA #&68
         STA tile_src + 2
@@ -2065,7 +2074,7 @@ NEXT
 .tile_src
         LDA &6800,Y
 .tile_dst
-        STA &0C80,Y
+        STA music_ch1,Y
         INY
         BNE tile_src
         INC tile_src + 2
