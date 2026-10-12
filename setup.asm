@@ -28,7 +28,7 @@
         LDA #&0A : STA CRTC_ADDR  ; CRTC R10
         LDA #&20 : STA CRTC_DATA  ; Cursor off
 
-        LDA #&02 : STA OS_MODE
+        LDA #&02 : STA OS_BREAK_EFFECT
 
     ; --- Load title screen RLE data ---
         LDX #LO(oscli_load_data2)

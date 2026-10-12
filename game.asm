@@ -107,9 +107,9 @@ NEXT
     SEI
     JSR swap_0600_0d00
     LDA #&02
-    STA OS_MODE
+    STA OS_BREAK_EFFECT
     LDA #&01
-    STA OS_CHARS_ROW
+    STA OS_SOUND_SUPPRESS
 {
         LDX #&08
         LDY #&00

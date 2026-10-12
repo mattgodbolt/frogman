@@ -26,8 +26,8 @@ ULA_PALETTE  = &FE21            ; Video ULA palette register
 IRQ1V_LO     = &0204            ; IRQ1 vector low byte
 IRQ1V_HI     = &0205            ; IRQ1 vector high byte
 LEVEL_NUM    = &0430            ; Level number (set by BASIC loader)
-OS_MODE      = &0258            ; OS workspace: current screen mode
-OS_CHARS_ROW = &0262            ; OS workspace: characters per row
+OS_BREAK_EFFECT = &0258         ; What ESCAPE and BREAK do (OSBYTE &C8): 2 clears memory on BREAK
+OS_SOUND_SUPPRESS = &0262       ; Non-zero stops the OS using the sound chip (OSBYTE &D2)
 
 ; --- Memory regions ---
 ENGINE_LOAD  = &5800            ; Engine loaded here, then copied to ENGINE_RUN
