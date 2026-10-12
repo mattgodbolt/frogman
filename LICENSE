@@ -19,10 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This licence covers the port's own work: its source code, tools and
-documentation. Chuckie Egg 2 itself is (c) 1985 A&F Software. The game's
-design, rooms, graphics, text and sounds, carried in src/data/ and in the
-disc image, remain theirs and are not covered by this licence.
