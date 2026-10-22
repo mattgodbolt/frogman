@@ -1,0 +1,28 @@
+# FROGMAN level 1 route, one goal per line (see plan.py for the syntax).
+# plan.py finds the key presses for each leg; record.mjs plays them in jsbeeb.
+#
+# Work in progress: so far this unlocks the map. Still to do: the eight
+# terminals and the power terminal.
+
+# The library ticket becomes a bible at the blank tiles on screen (6,1);
+# the bible lets the frog through the crosses.
+have 2b
+have 2c
+
+# Light the candle at the fire on (7,3) and blow up the TNT on (3,3):
+# that opens the way down to the bottom row of screens.
+have 2c,2f
+have 2c,30
+event consumed 30
+
+# Wand into the top hat: rabbit. The rabbit clears the barriers on (4,9),
+# but there's no headroom to drop anything beyond them, so the bible waits
+# on the near side while the rabbit goes through for the white key.
+have 2c,34
+have 2c,35
+at 4,9,6,1
+drop 2c at 4,9
+have 35,21
+
+# Locked floor (needs the ring) beyond the key: die and start again at home.
+at 0,0 deaths=1
