@@ -28,6 +28,10 @@ const BOOT_SHIFT_CYCLES = 1_600_000; // SHIFT held for 0.8s from power-on: SHIFT
 const CYCLES_PER_FRAME = 40_000;
 const TAIL_FRAMES = 250; // let the last action play out (LOGGED ON shows for 100 frames)
 const BOOT_MARGIN_FRAMES = 100;
+// wait_escape_release spins on the key with no vsync in between, so when
+// ESCAPE goes up decides which frame the death starts in. Let go mid-frame,
+// well clear of both vsyncs, rather than at one.
+const ESCAPE_HOLD_CYCLES = 12_000;
 
 const L = loadLabels(labelsPath);
 const route = JSON.parse(readFileSync(routePath, "utf8"));
@@ -95,15 +99,16 @@ let j = 0; // next planned scan_keys visit
 let prev = "none"; // the action under way
 let slashPending = false; // a hop that hasn't read '/' yet
 let fPending = false; // f0/f1 waiting for its key to be let go
-let escape = 0; // 1: ESCAPE held; 2: the game saw it and waits for release
+let escape = 0; // 1: ESCAPE held; 2: the game saw it and waits for release; 3: released
+let escapeSeen = 0;
 let spaceHeld = true;
 let done = false;
 let doneCycle = 0;
 const watch = new Map();
 
 function desired() {
-    if (escape === 1) return ["ESCAPE"];
-    if (escape === 2 || j >= actions.length) return [];
+    if (escape === 1 || escape === 2) return ["ESCAPE"];
+    if (escape === 3 || j >= actions.length) return [];
     if (slashPending) return ACTION_KEYS[prev];
     const next = actions[j];
     if (next === "escape") {
@@ -166,15 +171,22 @@ for (const name of ["hop_right.stop", "hop_left.stop", "hop_right.short_hop_righ
     watch.set(L[name], () => (slashPending = false));
 watch.set(L.read_key, () => {
     if (cpu.a === 0x68) slashPending = false;
+    if (escape === 2 && cpu.a === 0x70 && session.elapsedCycles - escapeSeen >= ESCAPE_HOLD_CYCLES) {
+        kb.set([]);
+        escape = 3;
+    }
     const key = KEY_NUMBERS[cpu.a];
     if (key) reads[key].push(session.elapsedCycles);
 });
 watch.set(L.use_item_slot, () => (fPending = false));
 watch.set(L.wait_escape_release, () => {
-    if (escape === 1) escape = 2;
+    if (escape === 1) {
+        escape = 2;
+        escapeSeen = session.elapsedCycles;
+    }
 });
 watch.set(L.handle_death, () => {
-    if (escape === 2) {
+    if (escape === 3) {
         escape = 0;
         prev = "escape";
         j++;

@@ -9,6 +9,7 @@ reproduces the run exactly.
 make playthrough   # replay it in jsbeeb and check it logs on
 make video         # ... and render playthrough/build/level1.mp4
 make capture       # convert it to a beebjit capture file
+make beebjit-check # ... and check it logs on in beebjit too
 ```
 
 The run takes 9.5 emulated minutes on a Model B (`B-DFS1.2`) with
@@ -90,9 +91,27 @@ node beebjit.mjs to-capture level1.keys level1.cap      # then: beebjit -0 frogm
 node beebjit.mjs from-capture some.cap some.keys
 ```
 
-Whether a capture replays to the same ending in beebjit depends on the two
-emulators agreeing cycle for cycle, from disc loading onwards. That hasn't
-been tested yet.
+`make beebjit-check` builds beebjit from source (a pinned revision) and
+replays the same log in it: it logs on too, with the same 5 lives. The two
+emulators don't agree to the cycle, so getting there took some care:
+
+- Their disc timing differs. jsbeeb models the drive spinning up and the
+  Model B's index-pulse ready latch; beebjit reports a spinning drive ready
+  at once. jsbeeb's Model B also has 16 separate ROM banks, while beebjit
+  mirrors the four ROM sockets across them like a stock machine, which
+  slows the MOS's start-up ROM scan. So the game reaches each prompt at a
+  different moment. The log presses each boot key a couple of seconds
+  after jsbeeb starts waiting for it, so beebjit is waiting too, and the
+  game starts at the same cycle in both.
+- That still leaves the two machines' vsyncs about 5000 cycles apart, so
+  every key change sits in the middle of its window (see above). The one
+  place that isn't enough is `wait_escape_release`, which spins on ESCAPE
+  with no vsync in the loop. ESCAPE is let go 12000 cycles after the game
+  notices it, mid-frame, so the death starts in the same frame on both
+  machines.
+
+beebjit's JIT wants fixed mmap addresses, which some sandboxes refuse, so
+the check runs its interpreter (`-mode interp`).
 
 ## The route
 

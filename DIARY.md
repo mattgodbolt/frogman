@@ -414,7 +414,21 @@ be in a few hundred places, so each leg takes well under a second.
 - Z hops left and X hops right; the docs had said "Z right, X down".
 
 **Tooling:** `make playthrough` replays and checks the log, `make video`
-renders it, and `make capture` converts it to a beebjit `-replay` file.
+renders it, `make capture` converts it to a beebjit `-replay` file, and
+`make beebjit-check` replays it in beebjit, where it logs on too.
+
+**Two emulators, one key log.** Same ROMs (OS 1.2, BASIC 2, DNFS), same
+disc, same keys; jsbeeb and beebjit still disagree about time. jsbeeb
+reaches the first DFS service call 176,411 cycles sooner, because its
+Model B has 16 separate ROM banks where beebjit mirrors the four sockets
+like a real B, and MOS 1.2's start-up scan compares every mirrored copy
+byte by byte. Then each cold disc access waits about half a second in
+jsbeeb, which models the drive spinning up and the B's index-pulse ready
+latch (ICs 83 to 86), and none in beebjit. With generous waits before each
+boot key, both start the game on the same cycle, and the frog agrees for
+every key read after that, with the vsyncs ~5000 cycles apart throughout.
+The only casualty was a recorder bug: releasing ESCAPE on a vsync, while
+the game busy-waits for it, put the next death a frame apart.
 The recorder only changes keys at the start of the vsync interrupt, and
 only once the game has read what it needs (the `/` a hop checks a frame
 in, the release f0/f1 wait for).
@@ -423,6 +437,5 @@ in, the release f0/f1 wait for).
 
 - Level 2 object analysis and DAG
 - A level 2 playthrough (the tools should carry over; it needs a plan)
-- Check the level 1 key log replays the same in beebjit
 - Rename `TILE_CONVEY_*`/`TILE_CLIMB_*` to say slope and conveyor
 - Full annotation of the setup code at &1100-&12FF

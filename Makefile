@@ -33,7 +33,12 @@ ROUTE      = $(PLAY)/build/level1-route.json
 KEYLOG     = $(PLAY)/level1.keys
 NODE      ?= node
 
-.PHONY: all clean verify maps playthrough route record video capture
+# beebjit, for checking the key log in a second emulator
+BEEBJIT_REPO = https://github.com/scarybeasts/beebjit.git
+BEEBJIT_REV  = 1fc0e674bf839a1bb3bd1568b68be120bae24924
+BEEBJIT_DIR  = $(PLAY)/build/beebjit
+
+.PHONY: all clean verify maps playthrough route record video capture beebjit-check
 
 all: $(TARGET)
 
@@ -104,6 +109,15 @@ $(PLAY)/build/level1.mp4: $(TARGET) $(KEYLOG) $(NODE_DEPS)
 capture: $(PLAY)/build/level1.beebjit
 $(PLAY)/build/level1.beebjit: $(KEYLOG) $(NODE_DEPS)
 	$(NODE) $(PLAY)/beebjit.mjs to-capture $(KEYLOG) $@
+
+# Replay the same key log in beebjit (built from source) and check it too.
+beebjit-check: $(PLAY)/build/level1.beebjit $(BEEBJIT_DIR)/beebjit $(TARGET)
+	$(PLAY)/beebjit-check.sh $(BEEBJIT_DIR) $(TARGET) $(KEYLOG) $(PLAY)/build/level1.beebjit
+
+$(BEEBJIT_DIR)/beebjit:
+	rm -rf $(BEEBJIT_DIR)
+	git clone -q $(BEEBJIT_REPO) $(BEEBJIT_DIR)
+	cd $(BEEBJIT_DIR) && git checkout -q $(BEEBJIT_REV) && sh build_headless_opt.sh
 
 # --- Clean ---
 
