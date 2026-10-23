@@ -11,7 +11,7 @@ make video         # ... and render playthrough/build/level1.mp4
 make capture       # convert it to a beebjit capture file
 ```
 
-The run takes 9.4 emulated minutes on a Model B (`B-DFS1.2`) with
+The run takes 9.5 emulated minutes on a Model B (`B-DFS1.2`) with
 `frogman_rebuilt.ssd` in drive 0, and finishes with 5 of the 9 lives left.
 
 ## Playing fair
@@ -58,7 +58,12 @@ but nothing is ever written to the machine except key presses.
 
    At every `scan_keys` it checks the frog against the model and stops at
    the first disagreement. On the full route they agreed at all 1490 key
-   reads.
+   reads. Finally, every key change is moved to the middle of the window
+   between the game's last read of the key's old state and its first read
+   of the new one. In jsbeeb that changes nothing, but it gives another
+   emulator the most slack possible. The boot keys are pressed well after
+   the machine starts waiting for them, so that a slower or faster disc
+   still starts the game at the same moment.
 
 5. **`replay.mjs`** plays a log back from power-on with nothing but its key
    presses, and can pipe the frames to ffmpeg.

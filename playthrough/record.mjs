@@ -27,6 +27,7 @@ if (!outPath) {
 const BOOT_SHIFT_CYCLES = 1_600_000; // SHIFT held for 0.8s from power-on: SHIFT+BREAK
 const CYCLES_PER_FRAME = 40_000;
 const TAIL_FRAMES = 250; // let the last action play out (LOGGED ON shows for 100 frames)
+const BOOT_MARGIN_FRAMES = 100;
 
 const L = loadLabels(labelsPath);
 const route = JSON.parse(readFileSync(routePath, "utf8"));
@@ -43,7 +44,7 @@ function fail(message, extra = {}) {
     console.error("  machine:", JSON.stringify(state));
     console.error("  details:", JSON.stringify(extra));
     writeFileSync(outPath + ".fb", session._completeFb8);
-    writeLog(outPath, kb.events, session.elapsedCycles, ["FAILED recording: " + message]);
+    writeLog(outPath, events, session.elapsedCycles, ["FAILED recording: " + message]);
     process.exit(1);
 }
 
@@ -61,8 +62,9 @@ for (let i = 0; ; i++) {
     if (text.includes("Choose level")) break;
     if (i > 400) throw new Error("never saw the level prompt");
 }
+await session.runFrames(10);
 kb.set(["1"]);
-await session.runFrames(5);
+await session.runFrames(25);
 kb.set([]);
 // The title picture waits for SPACE by writing its key number (&62) to the
 // System VIA's port A and reading the key's state back.
@@ -76,11 +78,17 @@ for (let i = 0; !pollingSpace; i++) {
     if (i > 3000) throw new Error("never saw the title screen wait for SPACE");
 }
 spaceWatch.remove();
+// Generous margins from here to the start of the game, so that another
+// emulator whose disc loads a little faster or slower is waiting for each
+// key when it comes, and starts the game at the same moment.
+await session.runFrames(BOOT_MARGIN_FRAMES);
 kb.set(["SPACE"]);
-await session.runFrames(10);
+await session.runFrames(BOOT_MARGIN_FRAMES);
 kb.set([]);
 await session.runUntilAddress(L.wait_space, 120);
+await session.runFrames(BOOT_MARGIN_FRAMES);
 kb.set(["SPACE"]);
+const gameStart = session.elapsedCycles;
 
 // --- The game ---
 let j = 0; // next planned scan_keys visit
@@ -145,15 +153,21 @@ watch.set(L.irq_handler, () => {
     if (spaceHeld) return;
     if (!kb.sameAs(desired())) kb.set(desired());
 });
+// Every keyboard read in the game goes through read_key, with the key
+// number in A: log them all, to move each key change to the middle of the
+// window in which nothing reads that key.
+const KEY_NUMBERS = { 0x42: "X", 0x61: "Z", 0x48: "COLON", 0x68: "SLASH", 0x20: "F0", 0x71: "F1", 0x70: "ESCAPE", 0x62: "SPACE" };
+const reads = Object.fromEntries(Object.values(KEY_NUMBERS).map((k) => [k, []]));
 watch.set(L.scan_keys, onScan);
 watch.set(L.wait_for_space_done, () => {
     spaceHeld = false;
-    kb.set([]);
 });
 for (const name of ["hop_right.stop", "hop_left.stop", "hop_right.short_hop_right", "hop_left.short_hop_left"])
     watch.set(L[name], () => (slashPending = false));
 watch.set(L.read_key, () => {
     if (cpu.a === 0x68) slashPending = false;
+    const key = KEY_NUMBERS[cpu.a];
+    if (key) reads[key].push(session.elapsedCycles);
 });
 watch.set(L.use_item_slot, () => (fPending = false));
 watch.set(L.wait_escape_release, () => {
@@ -188,15 +202,53 @@ while (!done || session.elapsedCycles < doneCycle + TAIL_FRAMES * CYCLES_PER_FRA
 }
 hook.remove();
 
+// The game only sees a key when read_key reads it, so a change can happen
+// anywhere between the last read of the old state and the first read of
+// the new one without making any difference here. Put it in the middle of
+// that window, which leaves the most room for an emulator whose frames
+// fall at slightly different moments. A press and release with no read in
+// between is invisible, and goes.
+function firstAtOrAfter(list, cycle) {
+    let lo = 0;
+    let hi = list.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (list[mid] < cycle) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo;
+}
+const boot = kb.events.filter((e) => e.cycle < gameStart || !(e.key in reads));
+const game = kb.events.filter((e) => e.cycle >= gameStart && e.key in reads);
+const moved = [];
+for (const key of Object.keys(reads)) {
+    const list = reads[key];
+    const evs = game.filter((e) => e.key === key);
+    for (let i = 0; i < evs.length; i++) {
+        const e = evs[i];
+        const n = firstAtOrAfter(list, e.cycle);
+        const next = list[n];
+        if (i + 1 < evs.length && (next === undefined || evs[i + 1].cycle <= next)) {
+            i++; // pressed and let go unseen
+            continue;
+        }
+        const prevRead = n > 0 ? list[n - 1] : undefined;
+        const cycle = prevRead === undefined || next === undefined ? e.cycle : Math.floor((prevRead + next) / 2);
+        moved.push({ ...e, cycle: Math.max(cycle, gameStart) });
+    }
+}
+const events = [...boot, ...moved].sort((a, b) => a.cycle - b.cycle);
+
 const st = frogState(session);
-writeLog(outPath, kb.events, session.elapsedCycles, [
+writeLog(outPath, events, session.elapsedCycles, [
     "FROGMAN key log, recorded by playthrough/record.mjs",
     `machine: ${session.modelName}, disc: ${disc.split("/").pop()}, from power-on`,
     `route: ${routePath.split("/").pop()}, ${actions.length} moves`,
     `final state: ${JSON.stringify(st)}`,
     "format: <2MHz cycles since power-on> <key> <down|up>",
+    "each key changes midway between the game's reads of it, for slack",
 ]);
 console.error(
-    `recorded ${kb.events.length} key events over ${(session.elapsedCycles / 2e6 / 60).toFixed(1)} emulated minutes; ` +
+    `recorded ${events.length} key events over ${(session.elapsedCycles / 2e6 / 60).toFixed(1)} emulated minutes; ` +
         `final ${JSON.stringify(st)}`,
 );
