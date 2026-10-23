@@ -1,0 +1,109 @@
+# FROGMAN level 1 route, one goal per line (see plan.py for the syntax).
+# plan.py finds the key presses for each leg; record.mjs plays them in jsbeeb.
+#
+# The goal: carry all eight terminals (&38-&3F) to the map terminal on the
+# start screen, then step on the power terminal on screen (6,9) to log on.
+# Two inventory slots and a yellow door in front of the map terminal make
+# this a game of shuffling items about.
+
+# The library ticket becomes a bible at the blank tiles on screen (6,1);
+# the bible lets the frog through the crosses.
+have 2b
+have 2c
+
+# Light the candle at the fire on (7,3) and blow up the TNT on (3,3):
+# that opens the way down to the bottom row of screens.
+have 2c,2f
+have 2c,30
+event consumed 30
+
+# Wand into the top hat: rabbit. Walking through a rabbit barrier on (4,9)
+# removes it, but only where the frog lands, so short hops clear both
+# columns. Then the rabbit can go, freeing a slot for the white key.
+have 2c,34
+have 2c,35
+at 4,9,6,1
+event barrier_cleared
+event barrier_cleared
+drop 35 at 3,9
+have 2c,21
+
+# Locked floor (needs the ring) beyond the key: die and start again at home.
+at 0,0 deaths=1
+
+# Delivery protocol. The yellow key lives on the start screen at (4,2),
+# just right of the hole in front of the yellow door; (5,2) is a shelf.
+# Coming home with two things, put one on the shelf, which lifts the frog
+# onto row 1; a short hop left lands on the key, which f0/f1 picks up from
+# below. In through the door, deliver, back out, put the key back, and
+# hop right onto the shelf to collect whatever's on it. Nothing else may
+# sit on row 2 here: from the east, the frog crosses the hole at (6,2)
+# with a long hop that needs (5,2) clear.
+#
+# Park the white key on (0,1) for now and fetch the yellow key.
+drop 21 at 0,1
+have 2c,28
+drop 28 at 0,0,4,2
+
+# The bible gets the frog through the crosses to terminal 7 (&3E). It can
+# stay behind: terminal 3 (&3A) blocks the way on, and the walk home from
+# there needs no bible.
+have 2c,3e
+drop 2c at 1,7
+have 3e,3a
+drop 3a at 0,0,5,2
+have 3e,28
+terminals 1
+drop 28 at 0,0,4,2
+have 3a
+have 3a,28
+terminals 2
+drop 28 at 0,0,4,2
+
+# Terminals 2, 5 and 1 (&39, &3C, &38) need nothing: walk there and back.
+have 39
+have 39,3c
+drop 3c at 0,0,5,2
+have 39,28
+terminals 3
+drop 28 at 0,0,4,2
+have 3c
+have 3c,28
+terminals 4
+drop 28 at 0,0,4,2
+have 38
+have 38,28
+terminals 5
+drop 28 at 0,0,4,2
+
+# Terminals 4 and 6 (&3B, &3D) are past the white door, a one-way trip:
+# take the white key, then ESCAPE home with it. It waits on the shelf
+# during each delivery.
+have 21
+have 21,3b
+drop 21 at 0,0,5,2 deaths=1
+have 3b,28
+terminals 6
+drop 28 at 0,0,4,2
+have 21
+have 21,3d
+drop 21 at 0,0,5,2 deaths=1
+have 3d,28
+terminals 7
+drop 28 at 0,0,4,2
+
+# The ring lets the frog stand on the locked floor in front of terminal 8
+# (&3F), which sits right next to the power terminal. Fetch it with the
+# white key, swap the key for terminal 8, ESCAPE home and deliver it.
+have 21
+have 21,37
+drop 21 at 6,9
+have 37,3f
+drop 37 at 0,0,5,2 deaths=1
+have 3f,28
+terminals 8
+drop 28 at 0,0,4,2
+
+# All eight on the map: back across the locked floor to log on.
+have 37
+logon

@@ -1,0 +1,9 @@
+{
+  "name": "frogman-playthrough",
+  "private": true,
+  "type": "module",
+  "description": "Record and replay FROGMAN playthroughs in jsbeeb",
+  "dependencies": {
+    "jsbeeb": "2.10.2"
+  }
+}

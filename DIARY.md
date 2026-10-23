@@ -363,7 +363,79 @@ The game has no scrolling — it's flip-screen. Renamed `zp_scroll_x`/`zp_scroll
 
 The `check_held` routine returns &FF when the item matches, which is *passable* per the codebase convention (&00=solid, &FF=passable). So types 5/7 tiles are barriers that become passable when you hold the matching item — not platforms that appear. Renamed the misleading `.solid` label to `.held_passable`.
 
+## Entry 23: A Complete Level 1 Playthrough
+
+Level 1 is completable, and `playthrough/level1.keys` proves it: a key log
+that takes a Model B from power-on to "LOGGED ON" in 9.4 emulated minutes
+with 5 lives to spare. It's nothing but key presses with timestamps; see
+`playthrough/README.md`.
+
+**The game is a tile machine.** Every decision is made on the 16x8 tile
+grid; the pixel arcs of hops and falls are drawn and never read. So
+`main_loop` ported to Python (`frogsim.py`) simulates the game exactly,
+and finding a route is a graph search, not an emulator grind. The port
+has to keep the asm's quirks: 8-bit wrap of rows and columns,
+out-of-bounds reads returning &00, and above all `check_below` reusing
+`zp_tile_x`/`zp_tile_y` after `set_tile_at_pos` (which scales them for
+drawing) or `draw_status` (which leaves them at &3E/&12). Played in jsbeeb,
+the frog was where the model said at all 1490 key reads of the run.
+
+**A brute-force search drowned** (item drop permutations times positions
+times lives), so the route is a hand-written list of goals (`level1.plan`)
+with a Dijkstra search per leg. With the inventory fixed, the frog can only
+be in a few hundred places, so each leg takes well under a second.
+
+**Things the playthrough taught us about the game:**
+
+- The overview map has its own power terminal (&1F at row 2, column 14 of
+  the overview grid), but it can never log on: `handle_special_tile` wants
+  `zp_game_state` = 0, and on the overview it's always &81 or &01. The real
+  one is on screen (6,9), next to terminal 8.
+- After LOGGED ON, `zp_terminal_ctr` is &FF; stepping onto the terminal
+  again with `zp_game_state` non-zero falls out of `already_done` into the
+  `halt` trap. And each first visit pushes a byte it never pulls.
+- Tile &11 isn't a door so much as a deadly floor: standing on it kills you
+  unless you hold a type-1 item (the ring).
+- Walking into a rabbit barrier (type 5) deletes it, but only the tile the
+  frog lands on, and a long hop jumps over one.
+- &02/&03 are slopes (stand on one and you slide down it; `:` facing up it
+  climbs), while &05/&1E are conveyors. The constants call them
+  `TILE_CONVEY_L`/`R` and `TILE_CLIMB_R`/`L` the other way round.
+- Jumping (`:` away from a ladder or slope) is cosmetic: the frog goes up a
+  tile and falls straight back, with no key read in between.
+- A dropped item fills the frog's tile and lifts the frog on top of it,
+  and needs headroom unless it's type 3 or 4. The frog can't climb onto an
+  item from the side, so anything left on the floor of a one-tile-high
+  corridor is a wall. That shaped the whole route: the yellow key is parked
+  by the yellow door, with a "shelf" next to it.
+- Every corner of the map's right half, past the white door, is one-way.
+  ESCAPE (die and restart at home, keeping your items) is the way back,
+  and it's needed four times.
+- Z hops left and X hops right; the docs had said "Z right, X down".
+
+**Tooling:** `make playthrough` replays and checks the log, `make video`
+renders it, `make capture` converts it to a beebjit `-replay` file, and
+`make beebjit-check` replays it in beebjit, where it logs on too.
+
+**Two emulators, one key log.** Same ROMs (OS 1.2, BASIC 2, DNFS), same
+disc, same keys; jsbeeb and beebjit still disagree about time. jsbeeb
+reaches the first DFS service call 176,411 cycles sooner, because its
+Model B has 16 separate ROM banks where beebjit mirrors the four sockets
+like a real B, and MOS 1.2's start-up scan compares every mirrored copy
+byte by byte. Then each cold disc access waits about half a second in
+jsbeeb, which models the drive spinning up and the B's index-pulse ready
+latch (ICs 83 to 86), and none in beebjit. With generous waits before each
+boot key, both start the game on the same cycle, and the frog agrees for
+every key read after that, with the vsyncs ~5000 cycles apart throughout.
+The only casualty was a recorder bug: releasing ESCAPE on a vsync, while
+the game busy-waits for it, put the next death a frame apart.
+The recorder only changes keys at the start of the vsync interrupt, and
+only once the game has read what it needs (the `/` a hop checks a frame
+in, the release f0/f1 wait for).
+
 ## What Remains
 
 - Level 2 object analysis and DAG
+- A level 2 playthrough (the tools should carry over; it needs a plan)
+- Rename `TILE_CONVEY_*`/`TILE_CLIMB_*` to say slope and conveyor
 - Full annotation of the setup code at &1100-&12FF
