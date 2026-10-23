@@ -9,7 +9,8 @@ any inventory change the leg didn't ask for.
 Plan file: one goal per line, '#' comments.
   have <item>[,<item>]     both slots end up holding these (hex, any order;
                            '-' for an empty slot)
-  drop <item> at <sx>,<sy> place <item> while on that screen
+  drop <item> at <sx>,<sy>[,<col>,<row>]
+                           place <item> on that screen (and on that tile)
   at <sx>,<sy>[,<col>,<row>] be on that screen (and tile)
   event <text...>          an event whose description starts with <text>
                            happens (e.g. "event consumed 30" for the TNT)
@@ -17,6 +18,7 @@ Plan file: one goal per line, '#' comments.
   logon                    the power terminal says LOGGED ON
 Options after the goal, separated by spaces:
   deaths=<n>               allow up to n deaths (ESCAPE or otherwise) in this leg
+  deaths=?                 walk if at all possible, else allow one death
   via=<sx>,<sy>            the leg must pass through that screen (repeatable,
                            visited in order) - handy to steer around traps
 
@@ -28,8 +30,9 @@ import itertools
 import json
 import sys
 
-from frogsim import MAIN, OVERVIEW, Died, Level, OffMap, settle, start_state, step
+from frogsim import OVERVIEW, Died, Level, OffMap, map_src_for, settle, start_state, step
 
+ITEM_EVENTS = ("picked", "placed", "evolve", "consumed", "terminal")
 ACTIONS = ("none", "right", "right_short", "left", "left_short", "up", "f0", "f1", "escape")
 
 
@@ -51,7 +54,8 @@ class Goal:
             rest = rest[1:]
         elif self.kind == "drop":
             self.item = int(rest[0], 16)
-            self.screen = tuple(map(int, rest[2].split(",")))
+            where = tuple(map(int, rest[2].split(",")))
+            self.screen, self.tile = where[:2], where[2:]
             rest = rest[3:]
         elif self.kind == "at":
             self.where = tuple(map(int, rest[0].split(",")))
@@ -68,18 +72,29 @@ class Goal:
         for opt in rest:
             k, v = opt.split("=")
             if k == "deaths":
-                self.deaths = int(v)
+                self.deaths = -1 if v == "?" else int(v)
             elif k == "via":
                 self.via.append(tuple(map(int, v.split(","))))
             else:
                 raise ValueError(f"unknown option {opt}")
 
+    def may_change_items(self):
+        """An event goal about something else (a barrier, say) mustn't be met by
+        an inventory change on the way, like dropping an item to climb onto."""
+        return self.kind != "event" or self.event.startswith(ITEM_EVENTS)
+
     def done(self, s, events):
         if self.kind == "have":
             return tuple(sorted((s.item0, s.item1))) == self.want
         if self.kind == "drop":
-            return (f"placed {self.item:02x}" in " ".join(events)
-                    and (s.sx, s.sy) == self.screen and s.src != OVERVIEW)
+            if not (f"placed {self.item:02x}" in " ".join(events)
+                    and (s.sx, s.sy) == self.screen and s.src != OVERVIEW):
+                return False
+            if not self.tile:
+                return True
+            col, row = self.tile
+            addr = map_src_for(s.sx, s.sy) + row * 16 + col
+            return dict(s.mods).get(addr) == self.item
         if self.kind == "at":
             here = (s.sx, s.sy, s.col, s.row)[:len(self.where)]
             return here == self.where and s.src != OVERVIEW
@@ -130,6 +145,8 @@ def leg(level, start, goal, max_states=2_000_000):
             if changed or "LOGGED ON" in ev:
                 if not (nv == nvia and goal.done(t, ev)):
                     continue
+                if changed and not goal.may_change_items():
+                    continue
             nd = d + f
             k = (t.key(), nv)
             if nd < best.get(k, 1 << 60):
@@ -161,7 +178,14 @@ def run_plan(lines, level=None, log=sys.stderr):
         if not line:
             continue
         goal = Goal(line)
-        r = leg(level, s, goal)
+        if goal.deaths < 0:
+            goal.deaths = 0
+            r = leg(level, s, goal)
+            if r is None:
+                goal.deaths = 1
+                r = leg(level, s, goal)
+        else:
+            r = leg(level, s, goal)
         if r is None:
             print(f"FAILED: {line}  (from screen {s.sx},{s.sy} col {s.col} row {s.row}, "
                   f"items {s.item0:02x} {s.item1:02x}, lives {s.lives})", file=log)

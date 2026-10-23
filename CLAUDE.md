@@ -18,7 +18,7 @@ make                # Build disc image
 - **4-channel sound engine** — what the code calls "sprites" are actually SN76489 sound channels driven by a music sequencer with envelope data
 - **Music is level-specific** — Level?T files overwrite all 3 channel data streams (&0C80-&0EFF)
 - **M key** toggles music on/off (not a debug feature for sprites)
-- **Controls**: Z (right), X (down), : (climb), / (short hop), f0/f1 (item slots), SPACE (start), ESCAPE (die)
+- **Controls**: Z (hop left), X (hop right), : (climb), / (short hop), f0/f1 (item slots), SPACE (start), ESCAPE (die)
 - **Pure NMOS 6502** — no 65C02 instructions, runs on Model B unchanged
 - Custom CRTC layout: display base &5800, 64 chars wide, 20 rows, &200-byte stride
 

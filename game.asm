@@ -355,14 +355,14 @@ NEXT
 {
         LDA #KEY_X
         JSR read_key
-        BPL not_down
+        BPL not_x
         JMP hop_right
-.not_down
+.not_x
         LDA #KEY_Z
         JSR read_key
-        BPL not_right
+        BPL not_z
         JMP hop_left
-.not_right
+.not_z
         LDA #KEY_COLON
         JSR read_key
         BPL not_up
